@@ -1,0 +1,21 @@
+name: Question about the sample
+description: Ask how the sample works or how to adapt its code.
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This repository is public.** Never paste your site token, device names or customer data. Questions about your account, devices, plans or data go to your LamasaTech account manager.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you submit
+      options:
+        - label: I removed tokens, device names and customer data from this issue.
+          required: true

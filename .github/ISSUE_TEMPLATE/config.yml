@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Account, device, plan or data question
+    url: https://displaypulse.com/contact/
+    about: For anything about your DisplayPulse account, devices, plans or data, contact your LamasaTech account manager or use this form. Please don't post account details in a public issue.
+  - name: DisplayPulse developer docs
+    url: https://displaypulse.com/docs/audience/campaign-integration/
+    about: The campaign integration guide and the local API reference.
