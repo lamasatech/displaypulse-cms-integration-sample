@@ -8,7 +8,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * [ConnectionSettingsStore] backed by the app's private preferences. The access token is stored
+ * [ConnectionSettingsStore] backed by the app's private preferences. The site token is stored
  * encrypted by [tokenCipher]; the host and port are not secret and are stored as they are.
  *
  * The settings are read for every request, so they are kept in memory after the first read instead
@@ -28,7 +28,7 @@ class PrefsConnectionSettingsStore @Inject constructor(
 
     @Synchronized
     override fun load(): ConnectionSettings = cached ?: ConnectionSettings(
-        host = prefs.getString(KEY_HOST, "").orEmpty(),
+        host = prefs.getString(KEY_HOST, ConnectionSettings.DEFAULT_HOST).orEmpty(),
         port = prefs.getInt(KEY_PORT, ConnectionSettings.DEFAULT_PORT),
         token = loadToken(),
     ).also { cached = it }
@@ -50,7 +50,7 @@ class PrefsConnectionSettingsStore @Inject constructor(
         val stored = prefs.getString(KEY_TOKEN, null) ?: return ""
         return tokenCipher.decrypt(stored) ?: run {
             // The user enters the token again; the device answers 401 until then.
-            Log.w(TAG, "The stored access token could not be decrypted; it must be entered again")
+            Log.w(TAG, "The stored site token could not be decrypted; it must be entered again")
             ""
         }
     }

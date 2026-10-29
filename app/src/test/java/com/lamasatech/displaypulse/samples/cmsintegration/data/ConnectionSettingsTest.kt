@@ -5,7 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Tests which access tokens can be sent in an HTTP header. */
+/** Tests which site tokens can be sent in an HTTP header. */
 class ConnectionSettingsTest {
 
     @Test

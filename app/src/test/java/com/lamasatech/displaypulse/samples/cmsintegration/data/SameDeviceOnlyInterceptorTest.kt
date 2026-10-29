@@ -2,7 +2,7 @@ package com.lamasatech.displaypulse.samples.cmsintegration.data
 
 import com.google.gson.Gson
 import com.lamasatech.displaypulse.samples.cmsintegration.data.api.CmsApiFactory
-import com.lamasatech.displaypulse.samples.cmsintegration.data.api.LocalNetworkOnlyInterceptor
+import com.lamasatech.displaypulse.samples.cmsintegration.data.api.SameDeviceOnlyInterceptor
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.ConnectionSettings
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.InMemorySettingsStore
 import java.io.IOException
@@ -17,10 +17,10 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Tests that requests go out only on connections to local addresses. */
-class LocalNetworkOnlyInterceptorTest {
+/** Tests that requests go out only on connections to this device. */
+class SameDeviceOnlyInterceptorTest {
 
-    private val interceptor = LocalNetworkOnlyInterceptor()
+    private val interceptor = SameDeviceOnlyInterceptor()
     private val server = MockWebServer()
 
     @After
@@ -37,8 +37,18 @@ class LocalNetworkOnlyInterceptorTest {
     }
 
     @Test
-    fun `a connection to a private address is passed on (control)`() {
+    fun `a connection to another device on the local network is refused`() {
         val chain = RecordingChain(RoutedConnection("192.168.1.20"))
+
+        val error = assertThrows(IOException::class.java) { interceptor.intercept(chain) }
+
+        assertFalse(chain.proceeded)
+        assertTrue(error.message!!.contains("127.0.0.1"))
+    }
+
+    @Test
+    fun `a connection to a loopback address is passed on (control)`() {
+        val chain = RecordingChain(RoutedConnection("127.0.0.1"))
 
         interceptor.intercept(chain)
 

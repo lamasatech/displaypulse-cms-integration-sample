@@ -27,16 +27,15 @@ leaves out.
 
 ## Before you start
 
-The sample needs a device running the DisplayPulse app that is set up to accept it:
+The sample runs **on the same device as the DisplayPulse app** and talks to it at `127.0.0.1`.
+Players on a separate device on the local network are not supported yet; support for them is planned.
 
 | Requirement | Why |
 |-------------|-----|
-| A device running the DisplayPulse app (Audience feature), on the same local network as this app or with this app installed on it | The sample talks to the DisplayPulse app directly; nothing goes through the cloud. |
-| The local HTTP API switched on in the DisplayPulse app (port `8400` by default) | Every call goes to `http://<device>:8400`. `/health` answers even without a token. |
-| A CMS connection credential (access token) issued for that device | Required for live figures and play events. Ask your DisplayPulse administrator; the token is issued with the device's CMS connection. |
-| A plan that includes the HTTP feed and play reporting | Without it the DisplayPulse app answers `403 tier_not_entitled`. |
-
-When the sample runs on the same device as the DisplayPulse app, use host `127.0.0.1`.
+| A DisplayPulse device running the DisplayPulse app (Audience feature), with this sample installed on it | The sample talks to the DisplayPulse app on the same device; nothing goes through the cloud. |
+| The local HTTP API switched on in the DisplayPulse app (port `8400` by default) | Every call goes to `http://127.0.0.1:8400`. `/health` answers even without a token. |
+| A **site token** (it starts with `dpcms_`) from a **CMS connection** that includes the device's site | Required for live figures and play events. Your DisplayPulse administrator creates the CMS connection in **Company settings → Integrations → CMS connections**, chooses its sites, and copies the token, which is shown once. |
+| The **Connect** plan or higher on the device's site | Without it the DisplayPulse app answers `403 tier_not_entitled`. |
 
 ## Main screen
 
@@ -46,9 +45,9 @@ Work from the top section to the bottom; each section depends on the one above i
 
 | Field / button | What it does |
 |----------------|--------------|
-| Host | IP address or host name of the device running DisplayPulse. Use `127.0.0.1` when the sample runs on that device. It must be a local network address; see [Configuration and security](#configuration-and-security). |
+| Host | `127.0.0.1` (pre-filled): the DisplayPulse app on this device. Other addresses are refused; see [Configuration and security](#configuration-and-security). |
 | Port | Port of the local API (default `8400`). |
-| Access token | The token issued for your connection. It is masked on screen and stored encrypted. |
+| Site token | The site token of your CMS connection (it starts with `dpcms_`). It is masked on screen and stored encrypted. |
 | Save and check | Stores the three values, then checks the connection. The status line shows *DisplayPulse app reachable* or *Unreachable: reason*. A token with spaces or characters picked up by copying from a document is refused. Host and port cannot change while a play is open or an event is waiting; the token can. |
 | Check health | Checks the connection again without changing the saved values. |
 
@@ -121,18 +120,19 @@ says so in the log. If a write fails, the log says so too, and the event is stil
 
 | What you see | Cause | What to do |
 |--------------|-------|------------|
-| *Unreachable* | Wrong host or port, the local API is off in the DisplayPulse app, or not on the same network | Check the address and that the local API is switched on. |
-| *… is not a local network address; request not sent* | The host is, or resolves to, a public internet address | Use the device's local address. The sample only connects to local networks, because the token travels over plain HTTP. |
-| *Access token contains a space or a character that cannot be sent* | The token was copied with a hidden character, such as a non-breaking space | Paste it again from a plain-text source, or type it. |
-| `401 unauthorized` | Token missing or not accepted | Enter the token issued for this device again. Live updates switch off until you turn them on again. |
-| `403 tier_not_entitled` | The plan does not include this feature | Ask your administrator to enable it. Live updates switch off until you turn them on again. |
+| *Unreachable* | Wrong port, the DisplayPulse app isn't running, or its local API is off | Check that the DisplayPulse app is running and its local API is switched on. |
+| *… is not this device; request not sent* | The host is, or resolves to, another device | Use `127.0.0.1`. The sample only connects to the DisplayPulse app on the same device, because the token travels over plain HTTP. |
+| *Site token contains a space or a character that cannot be sent* | The token was copied with a hidden character, such as a non-breaking space | Paste it again from a plain-text source, or type it. |
+| `401 unauthorized` | Token missing or not accepted, or the CMS connection was rotated or revoked | Enter the current site token of your CMS connection. Live updates switch off until you turn them on again. |
+| `403 tier_not_entitled` | The site's plan does not include this feature | Ask your administrator to check the plan (Connect or higher). Play events stay pending until it's fixed; live updates switch off until you turn them on again. |
+| `403 connection_identity_unavailable` | The CMS connection was created or changed a moment ago and is still reaching the device | Wait a few minutes, then tap **Retry pending event**. |
 | `429 too_many_requests` | More than about one feed read per second on this token | Slow down, or give each app its own token. The sample waits and retries play events automatically. |
 | `409 terminal_conflict` on Complete | The DisplayPulse app already ended this play (for example after its open-play timeout) | Nothing; the sample closes the play. Start a new play. |
-| `400 clock_invalid` | This device's clock is far ahead of the DisplayPulse device's, or an end time is before the start | Set both clocks to network time. |
-| Play accepted (`202`) but no audience in reports | The start arrived too late after its `occurred_at` time, usually because the clocks differ | Use network time on both devices. |
+| `400 clock_invalid` | The device clock is wrong, or an end time is before the start | Turn on automatic (network) date and time on the device. |
+| Play accepted (`202`) but no audience in reports | The start arrived more than 30 seconds after its `occurred_at` time, for example because it waited while the DisplayPulse app was unreachable | Send the start as soon as content appears, and keep the device on network time. |
 | `503 storage_unavailable` | The event could not be stored, or play reporting is switched off in the DisplayPulse app | The event stays pending; tap **Retry pending event**. If it keeps failing, tap **Discard pending event**. |
-| *Finish or discard the current play before changing the device address* | Host or port was changed while a play is open | End the play, or discard its pending event, then save the new address. |
-| *The access token could not be stored securely; it is used until the app closes* | The device's key store failed to encrypt the token | The connection works until the app closes. Enter the token again after a restart; if it keeps happening, the device's key store needs attention. |
+| *Finish or discard the current play before changing the device address* | The port was changed while a play is open | End the play, or discard its pending event, then save the new port. |
+| *The site token could not be stored securely; it is used until the app closes* | The device's key store failed to encrypt the token | The connection works until the app closes. Enter the token again after a restart; if it keeps happening, the device's key store needs attention. |
 | The token field is empty after an update or restore | The stored token could not be decrypted, for example after the device's key store was reset | Enter the token again. |
 
 ## API reference
@@ -141,15 +141,16 @@ The local API (endpoints, request and response fields, errors and retry rules) i
 the DisplayPulse developer site:
 
 - [Campaign integration overview](https://displaypulse.com/docs/audience/campaign-integration/)
-- [API reference](https://displaypulse.com/docs/audience/campaign-integration/api-reference/)
+- [Reporting plays](https://displaypulse.com/docs/audience/campaign-integration/reporting-plays/)
+- [API reference](https://displaypulse.com/docs/audience/campaign-integration/api-reference/) and [interactive reference](https://displaypulse.com/docs/audience/reference/)
 - [Android guide](https://displaypulse.com/docs/audience/campaign-integration/platforms/android/)
 
 ## Limitations
 
 This is a sample. Before you build a production player on it, note what it does not do:
 
-- **One device at a time.** A player that reports to several DisplayPulse devices needs one
-  connection and one playback record per device.
+- **Same device only.** The sample reports to the DisplayPulse app on its own device. Players on a
+  separate device on the local network are not supported yet.
 - **The pending event is resent when the sample is opened.** A player that runs unattended should
   also start itself after a device reboot, so it resends without waiting for someone to open it.
 - **The release build is not minified.** A release built from source is unsigned; sign it with
@@ -163,7 +164,7 @@ To try the sample without building it, install the signed APK from the latest
 [release](https://github.com/lamasatech/displaypulse-cms-integration-sample/releases/latest):
 
 ```bash
-adb install displaypulse-cms-integration-sample-1.0.0.apk
+adb install displaypulse-cms-integration-sample-1.0.1.apk
 ```
 
 To build from source you need JDK 21 and the Android SDK with the API 36 platform. The sample runs
@@ -199,17 +200,14 @@ send for a play event.
 ## Configuration and security
 
 - Connection details are entered in the app at runtime. Nothing is bundled in the source or
-  the build. Do not commit access tokens, host addresses or `local.properties`.
-- The access token is encrypted (AES-GCM) with a key kept in the Android Keystore before it is
+  the build. Do not commit site tokens, host addresses or `local.properties`.
+- The site token is encrypted (AES-GCM) with a key kept in the Android Keystore before it is
   stored. The key never leaves the Keystore.
-- The local API is plain HTTP, so requests are only sent to local addresses: loopback, private
-  IPv4 ranges (`10/8`, `172.16/12`, `192.168/16`), shared address space (`100.64/10`, used by
-  carrier NAT and by overlay networks such as Tailscale), link-local, and IPv6 unique local
-  addresses. Any other address is refused before the request, and the token in it, is sent.
-  Requests never go through a proxy.
-- Android's network security config can only allow cleartext per exact host name, not per address
-  range, so it cannot express "private networks only"; the sample enforces that in code
-  (`LocalNetworkOnlyInterceptor`) and its config trusts only the system's certificate authorities.
+- The local API is plain HTTP, so requests never leave the device. Android's network security
+  config allows cleartext only to `127.0.0.1` and `localhost`, and `SameDeviceOnlyInterceptor`
+  refuses any connection that resolves to another address before the request, and the token in it,
+  is sent. Requests never go through a proxy. The config trusts only the system's certificate
+  authorities.
 - Debug builds log HTTP requests and responses to logcat with the `Authorization` header
   hidden. Release builds log nothing.
 - App data backup is switched off, so the stored data is not copied to cloud backups.

@@ -5,6 +5,20 @@ All notable changes to this project are listed here. Versions follow
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-29
+
+### Changed
+
+- The sample connects only to the DisplayPulse app on the same device (`127.0.0.1`). Requests to
+  any other address, including the local network, are refused before they are sent, and cleartext
+  HTTP is allowed to `127.0.0.1` and `localhost` only. Players on a separate device are planned.
+- The host is pre-filled with `127.0.0.1`.
+- A play event answered `403` (`tier_not_entitled` or `connection_identity_unavailable`) is kept
+  pending and can be retried, instead of being refused for good.
+- README: site token and CMS connection wording, where the connection is created in DisplayPulse,
+  the Connect plan, new troubleshooting rows, and links to the Reporting plays page and the
+  interactive API reference.
+
 ## [1.0.0] - 2026-10-29
 
 First public release of the sample.
@@ -25,5 +39,6 @@ First public release of the sample.
 - README with prerequisites, troubleshooting, limitations and links to the API reference.
 - Apache License 2.0.
 
-[Unreleased]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/releases/tag/v1.0.0

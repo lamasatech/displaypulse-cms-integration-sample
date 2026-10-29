@@ -162,7 +162,7 @@ class CmsRepositoryImplTest {
     }
 
     @Test
-    fun `health check works without an access token`() = runTest {
+    fun `health check works without a site token`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"status":"ok"}"""))
         val result = repository.health()
         assertTrue(result is ApiResult.Success)
@@ -194,7 +194,7 @@ class CmsRepositoryImplTest {
 
     @Test
     fun `unconfigured host is a network error and sends nothing`() = runTest {
-        settings.settings = ConnectionSettings()
+        settings.settings = ConnectionSettings(host = "")
         val result = repository.health()
         assertTrue(result is ApiResult.NetworkError)
         assertEquals(0, server.requestCount)

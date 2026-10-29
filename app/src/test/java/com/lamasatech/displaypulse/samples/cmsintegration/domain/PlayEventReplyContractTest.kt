@@ -22,8 +22,7 @@ class PlayEventReplyContractTest {
         listOf(
             400 to "bad_request",
             400 to "clock_invalid",
-            403 to "tier_not_entitled",
-            403 to "connection_identity_unavailable",
+            400 to "missing_play_identity",
             404 to "not_found",
             409 to "event_id_conflict",
             409 to "play_already_started",
@@ -39,6 +38,8 @@ class PlayEventReplyContractTest {
     fun `replies worth sending again unchanged`() {
         listOf(
             401 to "unauthorized",
+            403 to "tier_not_entitled",
+            403 to "connection_identity_unavailable",
             429 to "too_many_requests",
             503 to "storage_unavailable",
         ).forEach { (code, error) ->

@@ -30,7 +30,8 @@ class DeliveryOutcomeClassifier @Inject constructor() {
         const val TERMINAL_CONFLICT = "terminal_conflict"
         val CLIENT_ERRORS = 400..499
 
-        // 401 is fixable by correcting the token; 408 and 429 are transient.
-        val RETRYABLE_CLIENT_ERRORS = setOf(401, 408, 429)
+        // 401 is fixed by correcting the token; 403 by finishing the CMS connection set-up
+        // (connection_identity_unavailable) or the plan (tier_not_entitled); 408 and 429 are transient.
+        val RETRYABLE_CLIENT_ERRORS = setOf(401, 403, 408, 429)
     }
 }

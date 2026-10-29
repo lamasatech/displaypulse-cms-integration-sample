@@ -85,7 +85,7 @@ class AudienceViewModel @Inject constructor(
      *
      * @param host IP address or host name.
      * @param portText port as typed by the user.
-     * @param token access token; blank means none.
+     * @param token site token; blank means none.
      */
     fun saveConnection(host: String, portText: String, token: String) {
         val port = portText.trim().toIntOrNull()
@@ -95,7 +95,7 @@ class AudienceViewModel @Inject constructor(
         }
         val settings = ConnectionSettings(host.trim(), port, token.trim())
         if (!ConnectionSettings.isValidToken(settings.token)) {
-            log("Access token contains a space or a character that cannot be sent; paste it again", isError = true)
+            log("Site token contains a space or a character that cannot be sent; paste it again", isError = true)
             return
         }
         val current = _state.value
@@ -108,7 +108,7 @@ class AudienceViewModel @Inject constructor(
         _state.update { it.copy(settings = settings) }
         log("Saved connection ${settings.host}:${settings.port}")
         if (!tokenStored) {
-            log("The access token could not be stored securely; it is used until the app closes", isError = true)
+            log("The site token could not be stored securely; it is used until the app closes", isError = true)
         }
         checkHealth()
     }

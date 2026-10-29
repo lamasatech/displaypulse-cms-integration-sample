@@ -12,14 +12,14 @@ import retrofit2.http.POST
 /**
  * HTTP API of the connected device.
  *
- * Host, port and access token are not part of these declarations: [CmsEndpointInterceptor]
+ * Host, port and site token are not part of these declarations: [CmsEndpointInterceptor]
  * applies them to every request. Functions return [Response] so callers can read the status
  * code and headers as well as the body.
  */
 interface CmsApi {
 
     /**
-     * Checks that the device is reachable. Needs no access token.
+     * Checks that the device is reachable. Needs no site token.
      *
      * @return the device's reply as a JSON object.
      */

@@ -6,9 +6,9 @@
     <string name="section_campaign">3. CAMPAIGN AND PLAYBACK</string>
     <string name="section_log">4. LOG</string>
 
-    <string name="hint_host">IP address or host name of the device running DisplayPulse</string>
+    <string name="hint_host">Host (127.0.0.1: this device)</string>
     <string name="hint_port">Port (default 8400)</string>
-    <string name="hint_token">Access token</string>
+    <string name="hint_token">Site token</string>
     <string name="hint_campaign_name">Campaign name</string>
 
     <string name="action_save_check">Save and check</string>

@@ -22,9 +22,8 @@ class DeliveryOutcomeClassifierTest {
     }
 
     @Test
-    fun `invalid, conflicting and not-entitled requests are rejected for good`() {
+    fun `invalid and conflicting requests are rejected for good`() {
         assertEquals(DeliveryOutcome.REJECTED, http(400))
-        assertEquals(DeliveryOutcome.REJECTED, http(403))
         assertEquals(DeliveryOutcome.REJECTED, http(409))
     }
 
@@ -41,8 +40,9 @@ class DeliveryOutcomeClassifierTest {
     }
 
     @Test
-    fun `bad token and rate limit are retryable`() {
+    fun `bad token, unfinished set-up or plan, and rate limit are retryable`() {
         assertEquals(DeliveryOutcome.RETRYABLE, http(401))
+        assertEquals(DeliveryOutcome.RETRYABLE, http(403))
         assertEquals(DeliveryOutcome.RETRYABLE, http(408))
         assertEquals(DeliveryOutcome.RETRYABLE, http(429))
     }

@@ -7,7 +7,7 @@ import okhttp3.Interceptor
 import okhttp3.Response
 
 /**
- * Points every request at the configured device and adds the access token.
+ * Points every request at the configured device and adds the site token.
  *
  * The address is entered by the user and can change while the app runs, so it is applied per
  * request instead of being fixed in the Retrofit base URL.
@@ -29,7 +29,7 @@ class CmsEndpointInterceptor(private val settingsStore: ConnectionSettingsStore)
         if (!settings.isConfigured) throw IOException("Device host is not configured")
         val url = try {
             chain.request().url.newBuilder()
-                .scheme("http") // devices on the local network are reached over plain HTTP
+                .scheme("http") // the DisplayPulse app's local API on this device is plain HTTP
                 .host(settings.host)
                 .port(settings.port)
                 .build()
@@ -40,7 +40,7 @@ class CmsEndpointInterceptor(private val settingsStore: ConnectionSettingsStore)
         if (settings.token.isNotBlank()) {
             // OkHttp throws IllegalArgumentException for such a header, which would crash the app.
             if (!ConnectionSettings.isValidToken(settings.token)) {
-                throw IOException("Access token contains characters that cannot be sent; enter it again")
+                throw IOException("Site token contains characters that cannot be sent; enter it again")
             }
             request.header("Authorization", "Bearer ${settings.token}")
         }

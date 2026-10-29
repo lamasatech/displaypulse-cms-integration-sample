@@ -21,7 +21,7 @@ object CmsApiFactory {
      * @param gson converter used for request and response bodies.
      * @param logLevel how much of each request and response is written to Logcat (tag `OkHttp`).
      * @return a ready-to-use API client with short timeouts suited to a local network. It connects
-     * directly, never through a proxy, and only to local network addresses.
+     * directly, never through a proxy, and only to this device (127.0.0.1).
      */
     fun create(
         settingsStore: ConnectionSettingsStore,
@@ -40,7 +40,7 @@ object CmsApiFactory {
             .proxy(Proxy.NO_PROXY)
             .addInterceptor(CmsEndpointInterceptor(settingsStore))
             .addInterceptor(logging)
-            .addNetworkInterceptor(LocalNetworkOnlyInterceptor())
+            .addNetworkInterceptor(SameDeviceOnlyInterceptor())
             .build()
         return Retrofit.Builder()
             .baseUrl(PLACEHOLDER_BASE_URL)

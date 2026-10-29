@@ -32,7 +32,7 @@ abstract class BindingModule {
     @Binds
     abstract fun bindConnectionSettingsStore(impl: PrefsConnectionSettingsStore): ConnectionSettingsStore
 
-    /** Encrypts the stored access token with a key held in the Android Keystore. */
+    /** Encrypts the stored site token with a key held in the Android Keystore. */
     @Binds
     abstract fun bindTokenCipher(impl: KeystoreTokenCipher): TokenCipher
 
