@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <integer-array name="kpi_colors">
+        <item>@color/kpi_cyan</item>
+        <item>@color/kpi_green</item>
+        <item>@color/kpi_pink</item>
+        <item>@color/kpi_white</item>
+        <item>@color/kpi_white</item>
+        <item>@color/kpi_gold</item>
+        <item>@color/kpi_purple</item>
+        <item>@color/kpi_green</item>
+        <item>@color/kpi_gold</item>
+    </integer-array>
+</resources>

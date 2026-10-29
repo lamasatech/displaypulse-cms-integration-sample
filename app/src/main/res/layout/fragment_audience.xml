@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:clipToPadding="false"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- 1. Connection -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="@string/section_connection" />
+
+        <TextView
+            android:id="@+id/tvConnection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/etHost"
+            style="@style/Field"
+            android:hint="@string/hint_host"
+            android:importantForAutofill="no"
+            android:inputType="textUri" />
+
+        <EditText
+            android:id="@+id/etPort"
+            style="@style/Field"
+            android:hint="@string/hint_port"
+            android:importantForAutofill="no"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/etToken"
+            style="@style/Field"
+            android:hint="@string/hint_token"
+            android:importantForAutofill="no"
+            android:inputType="textPassword" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSave"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/action_save_check" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnHealth"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/action_health" />
+        </LinearLayout>
+
+        <!-- 2. Live audience -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="@string/section_audience" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchPolling"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/switch_polling"
+            android:textColor="@color/text_primary" />
+
+        <TextView
+            android:id="@+id/tvAudienceStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/text_dim"
+            android:textSize="12sp" />
+
+        <GridLayout
+            android:id="@+id/kpiGrid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="3" />
+
+        <TextView
+            android:id="@+id/tvDemographics"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:textColor="@color/text_primary"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvCampaignLink"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/status_ok"
+            android:textSize="13sp" />
+
+        <!-- 3. Campaign and playback -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="@string/section_campaign" />
+
+        <EditText
+            android:id="@+id/etCampaignName"
+            style="@style/Field"
+            android:hint="@string/hint_campaign_name"
+            android:importantForAutofill="no"
+            android:inputType="text" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnNewCampaign"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/action_new_campaign" />
+
+        <TextView
+            android:id="@+id/tvCampaignId"
+            style="@style/Mono" />
+
+        <TextView
+            android:id="@+id/tvContentId"
+            style="@style/Mono" />
+
+        <TextView
+            android:id="@+id/tvPlayState"
+            style="@style/Mono"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/text_primary" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnStart"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/action_start" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnComplete"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_weight="1"
+                android:text="@string/action_complete" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnFail"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/action_fail" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnInterrupt"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_weight="1"
+                android:text="@string/action_interrupt" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/layoutPending"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvPending"
+                style="@style/Mono"
+                android:textColor="@color/status_error" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRetry"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/action_retry" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDiscard"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/action_discard" />
+        </LinearLayout>
+
+        <!-- 4. Log -->
+        <TextView
+            style="@style/SectionTitle"
+            android:text="@string/section_log" />
+
+        <TextView
+            android:id="@+id/tvLog"
+            style="@style/Mono"
+            android:textSize="11sp" />
+    </LinearLayout>
+</ScrollView>

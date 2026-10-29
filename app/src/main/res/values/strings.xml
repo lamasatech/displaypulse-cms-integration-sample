@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">DisplayPulse CMS Integration Sample</string>
+
+    <string name="section_connection">1. DISPLAYPULSE APP (AUDIENCE FEATURE)</string>
+    <string name="section_audience">2. LIVE AUDIENCE</string>
+    <string name="section_campaign">3. CAMPAIGN AND PLAYBACK</string>
+    <string name="section_log">4. LOG</string>
+
+    <string name="hint_host">IP address or host name of the device running DisplayPulse</string>
+    <string name="hint_port">Port (default 8400)</string>
+    <string name="hint_token">Access token</string>
+    <string name="hint_campaign_name">Campaign name</string>
+
+    <string name="action_save_check">Save and check</string>
+    <string name="action_health">Check health</string>
+    <string name="switch_polling">Live updates</string>
+    <string name="action_new_campaign">New campaign (generate UUID)</string>
+    <string name="action_start">Start play</string>
+    <string name="action_complete">Complete</string>
+    <string name="action_fail">Fail</string>
+    <string name="action_interrupt">Interrupt</string>
+    <string name="action_retry">Retry pending event</string>
+    <string name="action_discard">Discard pending event</string>
+
+    <string name="status_unknown">Not checked</string>
+    <string name="status_online">DisplayPulse app reachable</string>
+    <string name="status_offline">Unreachable: %1$s</string>
+
+    <string name="campaign_none">No campaign yet</string>
+    <string name="campaign_id_format">campaign_id: %1$s</string>
+    <string name="content_id_format">content_id:  %1$s</string>
+    <string name="play_idle">No play on screen</string>
+    <string name="play_active_format">Playing  play_id: %1$s</string>
+    <string name="pending_format">Not acknowledged yet: %1$s (event_id %2$s)</string>
+
+    <string name="value_missing" translatable="false">—</string>
+</resources>

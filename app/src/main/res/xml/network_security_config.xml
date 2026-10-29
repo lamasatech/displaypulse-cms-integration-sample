@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The DisplayPulse app's local API is plain HTTP on the local network, so cleartext must be
+    allowed. This file cannot narrow that to private addresses: it matches exact host names only,
+    not address ranges such as 192.168.0.0/16. LocalNetworkOnlyInterceptor enforces it instead and
+    refuses any connection to a non-local address before the request is sent.
+    Only the system's certificate authorities are trusted, never ones the user added.
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
