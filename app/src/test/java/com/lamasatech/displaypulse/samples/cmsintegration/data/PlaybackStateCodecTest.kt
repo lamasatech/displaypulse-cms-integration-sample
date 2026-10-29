@@ -36,6 +36,30 @@ class PlaybackStateCodecTest {
     }
 
     @Test
+    fun `a pending start with a duration round-trips with the same duration`() {
+        val state = PlaybackState(campaign = campaign, pending = pendingStart.copy(expectedDurationMs = 600_000L))
+
+        assertEquals(state, codec.decode(codec.encode(state)))
+    }
+
+    @Test
+    fun `a record written by 1_0_x without a duration is still read`() {
+        val json = """{"version":1,"campaign":{"id":"camp-1","name":"Demo","content_id":"content-1"},""" +
+            """"pending":{"event_id":"evt-1","type":"started","play_id":"play-1","campaign_id":"camp-1",""" +
+            """"content_id":"content-1","occurred_at_ms":1000}}"""
+
+        assertEquals(PlaybackState(campaign = campaign, pending = pendingStart), codec.decode(json))
+    }
+
+    @Test
+    fun `a stored duration the device would refuse is not read`() {
+        val json = codec.encode(PlaybackState(campaign = campaign, pending = pendingStart.copy(expectedDurationMs = 600_000L)))
+            .replace("\"expected_duration_ms\":600000", "\"expected_duration_ms\":1")
+
+        assertNull(codec.decode(json))
+    }
+
+    @Test
     fun `an empty state round-trips`() {
         assertEquals(PlaybackState(), codec.decode(codec.encode(PlaybackState())))
     }

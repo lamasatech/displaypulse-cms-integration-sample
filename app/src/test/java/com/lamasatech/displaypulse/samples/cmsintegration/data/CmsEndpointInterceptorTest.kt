@@ -15,9 +15,9 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Tests that a stored token which cannot be sent fails the call as an [IOException]. Any other
- * exception from an interceptor is rethrown by OkHttp on its dispatcher thread and crashes the app;
- * a synchronous call surfaces exactly what the interceptor threw.
+ * Tests that a stored host or token the sample cannot use fails the call as an [IOException]. Any
+ * other exception from an interceptor is rethrown by OkHttp on its dispatcher thread and crashes
+ * the app; a synchronous call surfaces exactly what the interceptor threw.
  */
 class CmsEndpointInterceptorTest {
 
@@ -36,6 +36,16 @@ class CmsEndpointInterceptorTest {
     fun tearDown() = server.shutdown()
 
     private fun call() = client.newCall(Request.Builder().url("http://localhost/health").build()).execute()
+
+    @Test
+    fun `a stored host other than this device fails with the host rule without reaching the device`() {
+        // A version that accepted local-network addresses may have stored one.
+        settings.settings = settings.settings.copy(host = "192.168.1.20")
+
+        val error = assertThrows(IOException::class.java) { call() }
+        assertEquals(ConnectionSettings.HOST_REQUIREMENT, error.message)
+        assertEquals(0, server.requestCount)
+    }
 
     @Test
     fun `a stored token that cannot be sent fails as an IOException without reaching the device`() {

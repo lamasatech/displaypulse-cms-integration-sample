@@ -16,6 +16,8 @@ package com.lamasatech.displaypulse.samples.cmsintegration.domain.model
  * @property contentId content item being played; required for [PlayEventType.STARTED] only.
  * @property occurredAtMs when the event happened, in Unix time milliseconds.
  * @property reason why the play failed or was interrupted; required for those types and forbidden otherwise.
+ * @property expectedDurationMs how long the content is expected to play; optional for
+ * [PlayEventType.STARTED], forbidden otherwise, and within the [ContentDuration] limits.
  * @throws IllegalArgumentException if a field required for [type] is missing or one that is forbidden is set.
  */
 data class PlayEvent(
@@ -26,6 +28,7 @@ data class PlayEvent(
     val contentId: String?,
     val occurredAtMs: Long,
     val reason: String?,
+    val expectedDurationMs: Long? = null,
 ) {
     init {
         require(type != PlayEventType.STARTED || (campaignId != null && contentId != null)) {
@@ -33,6 +36,12 @@ data class PlayEvent(
         }
         require(type.requiresReason == (reason != null)) {
             "reason is required for failed/interrupted and forbidden for started/completed"
+        }
+        require(expectedDurationMs == null || type == PlayEventType.STARTED) {
+            "expectedDurationMs is allowed on started events only"
+        }
+        require(expectedDurationMs == null || ContentDuration.isValid(expectedDurationMs)) {
+            "expectedDurationMs must be from ${ContentDuration.MIN_MS} to ${ContentDuration.MAX_MS}"
         }
     }
 }

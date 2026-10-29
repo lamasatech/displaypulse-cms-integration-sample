@@ -12,6 +12,7 @@ import com.lamasatech.displaypulse.samples.cmsintegration.domain.DeliveryOutcome
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.PlayEventSender
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.PlaybackReducer
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ApiResult
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ContentDuration
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeliveryOutcome
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventType
@@ -79,21 +80,26 @@ class AudienceViewModel @Inject constructor(
     /**
      * Validates and saves the connection settings, then checks that the device answers.
      *
-     * Nothing is saved, and the reason is logged, when the port or token is invalid, or when the
-     * device address would change while a play is open or an event is waiting. The token alone may
-     * change at any time, so a rejected token can be fixed before tapping Retry.
+     * Nothing is saved, and the reason is logged, when the host, port or token is invalid, or when
+     * the device address would change while a play is open or an event is waiting. The token alone
+     * may change at any time, so a rejected token can be fixed before tapping Retry.
      *
-     * @param host IP address or host name.
+     * @param host host as typed by the user; only `127.0.0.1` and `localhost` are accepted.
      * @param portText port as typed by the user.
      * @param token site token; blank means none.
      */
     fun saveConnection(host: String, portText: String, token: String) {
+        val normalizedHost = ConnectionSettings.normalizeHost(host)
+        if (!ConnectionSettings.isAllowedHost(normalizedHost)) {
+            log(ConnectionSettings.HOST_REQUIREMENT, isError = true)
+            return
+        }
         val port = portText.trim().toIntOrNull()
         if (port == null || port !in ConnectionSettings.VALID_PORTS) {
             log("Port must be a number between 1 and 65535", isError = true)
             return
         }
-        val settings = ConnectionSettings(host.trim(), port, token.trim())
+        val settings = ConnectionSettings(normalizedHost, port, token.trim())
         if (!ConnectionSettings.isValidToken(settings.token)) {
             log("Site token contains a space or a character that cannot be sent; paste it again", isError = true)
             return
@@ -149,10 +155,26 @@ class AudienceViewModel @Inject constructor(
         viewModelScope.launch { savePlayback() }
     }
 
-    /** Starts a new play for the current campaign and delivers its `started` event. Does nothing if a play cannot start now. */
-    fun startPlay() {
+    /**
+     * Starts a new play for the current campaign and delivers its `started` event. Does nothing if
+     * a play cannot start now.
+     *
+     * Nothing is sent, and the reason is logged, when [durationSecondsText] is not blank and is not
+     * a whole number of seconds the device accepts.
+     *
+     * @param durationSecondsText expected content duration in whole seconds as typed by the user;
+     * blank means unknown, and the device then ends the play after its fallback limit.
+     */
+    fun startPlay(durationSecondsText: String) {
         if (!_state.value.playback.canStart) return
-        _state.update { it.copy(playback = reducer.requestStart(it.playback)) }
+        val expectedDurationMs = if (durationSecondsText.isBlank()) null else {
+            ContentDuration.fromSecondsText(durationSecondsText) ?: run {
+                log("Content duration must be a whole number of seconds from " +
+                    "${ContentDuration.MIN_MS / 1_000} to ${ContentDuration.MAX_MS / 1_000}", isError = true)
+                return
+            }
+        }
+        _state.update { it.copy(playback = reducer.requestStart(it.playback, expectedDurationMs)) }
         deliverPending()
     }
 
@@ -264,7 +286,8 @@ class AudienceViewModel @Inject constructor(
     }
 
     private fun describe(event: PlayEvent, result: ApiResult<PlayReceipt>): String {
-        val head = "POST /v1/play-events ${event.type.wireName} play=${event.playId.take(8)}"
+        val duration = event.expectedDurationMs?.let { " expected_duration_ms=$it" }.orEmpty()
+        val head = "POST /v1/play-events ${event.type.wireName} play=${event.playId.take(8)}$duration"
         return when (result) {
             is ApiResult.Success ->
                 "$head → ${if (result.value.duplicate) "200 duplicate" else "202 accepted"} receipt=${result.value.receiptId}"

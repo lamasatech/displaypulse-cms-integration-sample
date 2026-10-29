@@ -90,7 +90,7 @@ class AudienceFragment : Fragment() {
         btnHealth.setOnClickListener { viewModel.checkHealth() }
         switchPolling.setOnCheckedChangeListener { _, checked -> viewModel.setPolling(checked) }
         btnNewCampaign.setOnClickListener { viewModel.createCampaign(etCampaignName.text.toString()) }
-        btnStart.setOnClickListener { viewModel.startPlay() }
+        btnStart.setOnClickListener { viewModel.startPlay(etContentDuration.text.toString()) }
         btnComplete.setOnClickListener { viewModel.endPlay(PlayEventType.COMPLETED, null) }
         btnFail.setOnClickListener { viewModel.endPlay(PlayEventType.FAILED, REASON_FAILED) }
         btnInterrupt.setOnClickListener { viewModel.endPlay(PlayEventType.INTERRUPTED, REASON_INTERRUPTED) }

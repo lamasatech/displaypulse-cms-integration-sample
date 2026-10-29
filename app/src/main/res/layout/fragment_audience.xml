@@ -140,6 +140,13 @@
             android:layout_marginTop="8dp"
             android:textColor="@color/text_primary" />
 
+        <EditText
+            android:id="@+id/etContentDuration"
+            style="@style/Field"
+            android:hint="@string/hint_content_duration"
+            android:importantForAutofill="no"
+            android:inputType="number" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

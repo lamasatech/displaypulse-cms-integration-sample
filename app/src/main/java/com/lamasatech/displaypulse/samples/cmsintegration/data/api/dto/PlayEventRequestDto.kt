@@ -16,6 +16,8 @@ import com.google.gson.annotations.SerializedName
  * @property contentId content id; sent with `started` events only.
  * @property occurredAt ISO-8601 UTC time of the event.
  * @property reason explanation; sent with `failed` and `interrupted` events only.
+ * @property expectedDurationMs expected content duration in milliseconds; sent with `started`
+ * events only, and only when known.
  */
 data class PlayEventRequestDto(
     @SerializedName("schema_version") val schemaVersion: String = SCHEMA_VERSION,
@@ -26,9 +28,10 @@ data class PlayEventRequestDto(
     @SerializedName("content_id") val contentId: String?,
     @SerializedName("occurred_at") val occurredAt: String,
     @SerializedName("reason") val reason: String?,
+    @SerializedName("expected_duration_ms") val expectedDurationMs: Long?,
 ) {
     companion object {
         /** The only body format version the receiver accepts. */
-        const val SCHEMA_VERSION = "1.0"
+        const val SCHEMA_VERSION = "1.1"
     }
 }

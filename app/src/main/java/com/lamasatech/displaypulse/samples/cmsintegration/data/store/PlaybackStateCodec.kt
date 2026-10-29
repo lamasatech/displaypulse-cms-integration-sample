@@ -38,6 +38,7 @@ class PlaybackStateCodec @Inject constructor(private val gson: Gson) {
             pending = state.pending?.let {
                 StoredPlayEventDto(
                     it.eventId, it.type.wireName, it.playId, it.campaignId, it.contentId, it.occurredAtMs, it.reason,
+                    it.expectedDurationMs,
                 )
             },
         )
@@ -84,12 +85,17 @@ class PlaybackStateCodec @Inject constructor(private val gson: Gson) {
         contentId = contentId,
         occurredAtMs = required(occurredAtMs),
         reason = reason,
+        expectedDurationMs = expectedDurationMs,
     )
 
     private fun <T : Any> required(value: T?): T = requireNotNull(value) { "a required field is missing" }
 
     private companion object {
-        /** Format version of the stored record. Bump it when the record changes incompatibly. */
+        /**
+         * Format version of the stored record. Bump it when the record changes incompatibly. Adding
+         * the optional `expected_duration_ms` in 1.0.1 is compatible: a 1.0.0 record reads as no
+         * duration, so its pending event is still resent.
+         */
         const val VERSION = 1
     }
 }

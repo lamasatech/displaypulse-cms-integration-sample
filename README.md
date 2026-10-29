@@ -45,7 +45,7 @@ Work from the top section to the bottom; each section depends on the one above i
 
 | Field / button | What it does |
 |----------------|--------------|
-| Host | `127.0.0.1` (pre-filled): the DisplayPulse app on this device. Other addresses are refused; see [Configuration and security](#configuration-and-security). |
+| Host | `127.0.0.1` (pre-filled) or `localhost`: the DisplayPulse app on this device. Any other value is refused when you tap **Save and check**, and nothing is saved; see [Configuration and security](#configuration-and-security). |
 | Port | Port of the local API (default `8400`). |
 | Site token | The site token of your CMS connection (it starts with `dpcms_`). It is masked on screen and stored encrypted. |
 | Save and check | Stores the three values, then checks the connection. The status line shows *DisplayPulse app reachable* or *Unreachable: reason*. A token with spaces or characters picked up by copying from a document is refused. Host and port cannot change while a play is open or an event is waiting; the token can. |
@@ -66,8 +66,14 @@ succeed; fix the token or plan, then switch them on again.
 
 1. Tap **New campaign (generate UUID)**. The campaign id appears. Optionally type a
    campaign name first.
-2. Tap **Start play** when your content begins. A play id appears and the status
-   changes to *Playing*.
+2. Optionally type the **Content duration** in whole seconds (5 to 7200), then tap
+   **Start play** when your content begins. A play id appears and the status changes to
+   *Playing*. The duration is sent as `expected_duration_ms`; leave it empty when the length
+   is not known.
+   The DisplayPulse app ends a play that is still open on its own (the open-play timeout):
+   30 seconds after the declared duration, or after 5 minutes when no duration was sent. So
+   declare the duration for content longer than 5 minutes, or its audience after that point
+   is not counted and **Complete** is answered `409`.
 3. End the play with **Complete**, **Fail** or **Interrupt**. These are only available
    while a play is active. Fail sends the reason `player_error` and Interrupt sends
    `user_skipped`, as examples of what a player would report.
@@ -121,6 +127,7 @@ says so in the log. If a write fails, the log says so too, and the event is stil
 | What you see | Cause | What to do |
 |--------------|-------|------------|
 | *Unreachable* | Wrong port, the DisplayPulse app isn't running, or its local API is off | Check that the DisplayPulse app is running and its local API is switched on. |
+| *Host must be 127.0.0.1 or localhost* | Another address, a host name, or a value with a scheme or port was entered | Enter `127.0.0.1`. The port goes in its own field. |
 | *… is not this device; request not sent* | The host is, or resolves to, another device | Use `127.0.0.1`. The sample only connects to the DisplayPulse app on the same device, because the token travels over plain HTTP. |
 | *Site token contains a space or a character that cannot be sent* | The token was copied with a hidden character, such as a non-breaking space | Paste it again from a plain-text source, or type it. |
 | `401 unauthorized` | Token missing or not accepted, or the CMS connection was rotated or revoked | Enter the current site token of your CMS connection. Live updates switch off until you turn them on again. |
@@ -141,8 +148,7 @@ The local API (endpoints, request and response fields, errors and retry rules) i
 the DisplayPulse developer site:
 
 - [Campaign integration overview](https://displaypulse.com/docs/audience/campaign-integration/)
-- [Reporting plays](https://displaypulse.com/docs/audience/campaign-integration/reporting-plays/)
-- [API reference](https://displaypulse.com/docs/audience/campaign-integration/api-reference/) and [interactive reference](https://displaypulse.com/docs/audience/reference/)
+- [API reference](https://displaypulse.com/docs/audience/campaign-integration/api-reference/)
 - [Android guide](https://displaypulse.com/docs/audience/campaign-integration/platforms/android/)
 
 ## Limitations

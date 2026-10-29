@@ -14,6 +14,7 @@ fun PlayEvent.toRequestDto() = PlayEventRequestDto(
     contentId = contentId,
     occurredAt = Iso8601.formatUtc(occurredAtMs),
     reason = reason,
+    expectedDurationMs = expectedDurationMs,
 )
 
 /**

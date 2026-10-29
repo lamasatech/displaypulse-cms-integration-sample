@@ -48,7 +48,7 @@ class CmsRepositoryImplTest {
     @Test
     fun `play event posts the campaign id with a bearer token to the configured host`() = runTest {
         server.enqueue(MockResponse().setResponseCode(202).setBody("""{"status":"accepted","play_id":"id-2","receipt_id":41}"""))
-        val event = factory.started(campaign)
+        val event = factory.started(campaign, null)
 
         val result = repository.sendPlayEvent(event)
 
@@ -59,7 +59,7 @@ class CmsRepositoryImplTest {
         assertEquals("Bearer secret-token", request.getHeader("Authorization"))
         assertTrue(request.getHeader("Content-Type")!!.startsWith("application/json"))
         val body = JsonParser.parseString(request.body.readUtf8()).asJsonObject
-        assertEquals("1.0", body["schema_version"].asString)
+        assertEquals("1.1", body["schema_version"].asString)
         assertEquals("started", body["event_type"].asString)
         assertEquals("camp-uuid", body["campaign_id"].asString)
         assertEquals("content-uuid", body["content_id"].asString)
@@ -67,12 +67,25 @@ class CmsRepositoryImplTest {
         assertEquals("2023-11-14T22:13:20.000Z", body["occurred_at"].asString)
         // The device rejects unknown fields, so absent optionals must not be serialized at all.
         assertFalse(body.has("reason"))
+        assertFalse(body.has("expected_duration_ms"))
+    }
+
+    @Test
+    fun `started with a known duration sends it as whole milliseconds`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(202).setBody("""{"status":"accepted","play_id":"p","receipt_id":1}"""))
+
+        repository.sendPlayEvent(factory.started(campaign, 600_000L))
+
+        val duration = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject["expected_duration_ms"]
+        // A string or a fraction is refused by the device, so the JSON value must be an integer.
+        assertTrue(duration.asJsonPrimitive.isNumber)
+        assertEquals("600000", duration.toString())
     }
 
     @Test
     fun `terminal event omits campaign and content ids and carries the reason`() = runTest {
         server.enqueue(MockResponse().setResponseCode(202).setBody("""{"status":"accepted","play_id":"p","receipt_id":1}"""))
-        val started = factory.started(campaign)
+        val started = factory.started(campaign, null)
         val play = ActivePlay(started.playId, "camp-uuid", "content-uuid", 0)
 
         repository.sendPlayEvent(factory.terminal(play, PlayEventType.FAILED, "player_error"))
@@ -83,12 +96,13 @@ class CmsRepositoryImplTest {
         assertEquals("player_error", body["reason"].asString)
         assertFalse(body.has("campaign_id"))
         assertFalse(body.has("content_id"))
+        assertFalse(body.has("expected_duration_ms"))
     }
 
     @Test
     fun `200 means the device saw an identical retry`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("""{"status":"duplicate","play_id":"p","receipt_id":9}"""))
-        val result = repository.sendPlayEvent(factory.started(campaign))
+        val result = repository.sendPlayEvent(factory.started(campaign, null))
         assertEquals(ApiResult.Success(PlayReceipt(receiptId = 9, duplicate = true)), result)
     }
 
@@ -98,7 +112,7 @@ class CmsRepositoryImplTest {
             MockResponse().setResponseCode(429).setHeader("Retry-After", "3")
                 .setBody("""{"error":"rate_limited","message":"slow down","retry_after_ms":2500}"""),
         )
-        val result = repository.sendPlayEvent(factory.started(campaign)) as ApiResult.HttpError
+        val result = repository.sendPlayEvent(factory.started(campaign, null)) as ApiResult.HttpError
         assertEquals(429, result.code)
         assertEquals(2_500L, result.retryAfterMs)
     }
@@ -106,14 +120,14 @@ class CmsRepositoryImplTest {
     @Test
     fun `retry-after header is used when the body has no delay`() = runTest {
         server.enqueue(MockResponse().setResponseCode(429).setHeader("Retry-After", "4").setBody("{}"))
-        val result = repository.sendPlayEvent(factory.started(campaign)) as ApiResult.HttpError
+        val result = repository.sendPlayEvent(factory.started(campaign, null)) as ApiResult.HttpError
         assertEquals(4_000L, result.retryAfterMs)
     }
 
     @Test
     fun `conflict and bad request surface the device error`() = runTest {
         server.enqueue(MockResponse().setResponseCode(409).setBody("""{"error":"event_id_conflict","message":"reused"}"""))
-        val result = repository.sendPlayEvent(factory.started(campaign)) as ApiResult.HttpError
+        val result = repository.sendPlayEvent(factory.started(campaign, null)) as ApiResult.HttpError
         assertEquals(409, result.code)
         assertEquals("event_id_conflict", result.error)
         assertNull(result.retryAfterMs)
@@ -122,7 +136,7 @@ class CmsRepositoryImplTest {
     @Test
     fun `an error body that is not JSON does not crash`() = runTest {
         server.enqueue(MockResponse().setResponseCode(503).setBody("<html>down</html>"))
-        val result = repository.sendPlayEvent(factory.started(campaign)) as ApiResult.HttpError
+        val result = repository.sendPlayEvent(factory.started(campaign, null)) as ApiResult.HttpError
         assertEquals(503, result.code)
         assertNull(result.error)
     }
@@ -193,10 +207,12 @@ class CmsRepositoryImplTest {
     }
 
     @Test
-    fun `unconfigured host is a network error and sends nothing`() = runTest {
-        settings.settings = ConnectionSettings(host = "")
-        val result = repository.health()
-        assertTrue(result is ApiResult.NetworkError)
+    fun `a host other than this device is a network error and sends nothing`() = runTest {
+        for (host in listOf("", "192.168.1.20", "example.com")) {
+            settings.settings = ConnectionSettings(host = host)
+            val result = repository.health()
+            assertEquals(host, ApiResult.NetworkError(ConnectionSettings.HOST_REQUIREMENT), result)
+        }
         assertEquals(0, server.requestCount)
     }
 

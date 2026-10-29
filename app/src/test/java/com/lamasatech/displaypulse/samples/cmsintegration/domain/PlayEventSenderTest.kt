@@ -15,7 +15,7 @@ import org.junit.Test
 class PlayEventSenderTest {
 
     private val event = PlayEventFactory(FixedClock(), SequentialIds())
-        .started(Campaign("camp-1", "Demo", "content-1"))
+        .started(Campaign("camp-1", "Demo", "content-1"), null)
     private val accepted = ApiResult.Success(PlayReceipt(receiptId = 7, duplicate = false))
 
     private fun limited(retryAfterMs: Long?) = ApiResult.HttpError(429, "rate_limited", null, retryAfterMs)

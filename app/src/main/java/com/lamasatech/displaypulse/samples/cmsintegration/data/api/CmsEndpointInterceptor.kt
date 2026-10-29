@@ -20,22 +20,20 @@ class CmsEndpointInterceptor(private val settingsStore: ConnectionSettingsStore)
      * Rewrites scheme, host and port from the current settings and sets the `Authorization` header
      * when a token is configured.
      *
-     * @throws IOException if no valid host is configured or the stored token cannot be sent in a
-     * header; OkHttp reports it as a failed call. Any other exception thrown here would crash the
-     * app on OkHttp's dispatcher thread.
+     * @throws IOException if the stored host or port is not one the sample accepts, or the stored
+     * token cannot be sent in a header; OkHttp reports it as a failed call. Any other exception
+     * thrown here would crash the app on OkHttp's dispatcher thread.
      */
     override fun intercept(chain: Interceptor.Chain): Response {
         val settings = settingsStore.load()
-        if (!settings.isConfigured) throw IOException("Device host is not configured")
-        val url = try {
-            chain.request().url.newBuilder()
-                .scheme("http") // the DisplayPulse app's local API on this device is plain HTTP
-                .host(settings.host)
-                .port(settings.port)
-                .build()
-        } catch (e: IllegalArgumentException) {
-            throw IOException("Invalid device host: ${settings.host}", e)
-        }
+        // Settings are checked when saved; this also covers a value stored by an earlier version.
+        if (!ConnectionSettings.isAllowedHost(settings.host)) throw IOException(ConnectionSettings.HOST_REQUIREMENT)
+        if (settings.port !in ConnectionSettings.VALID_PORTS) throw IOException("Device port is not configured")
+        val url = chain.request().url.newBuilder()
+            .scheme("http") // the DisplayPulse app's local API on this device is plain HTTP
+            .host(settings.host)
+            .port(settings.port)
+            .build()
         val request = chain.request().newBuilder().url(url)
         if (settings.token.isNotBlank()) {
             // OkHttp throws IllegalArgumentException for such a header, which would crash the app.

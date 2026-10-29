@@ -45,7 +45,7 @@ class AudienceViewModelTest {
     private val clock = FixedClock()
     private val ids = SequentialIds()
     private val repository = FakeCmsRepository()
-    private val settings = InMemorySettingsStore(ConnectionSettings("10.0.0.5", 8400, "good-token"))
+    private val settings = InMemorySettingsStore(ConnectionSettings("127.0.0.1", 8400, "good-token"))
     private val playbacks = InMemoryPlaybackStore(PlaybackState(campaign = Campaign("camp-1", "Demo", "content-1")))
 
     private val accepted = ApiResult.Success(PlayReceipt(receiptId = 1, duplicate = false))
@@ -66,10 +66,36 @@ class AudienceViewModelTest {
     private fun AudienceViewModel.lastLog() = state.value.log.first()
 
     @Test
+    fun `a host other than this device is refused and not saved`() = runTest(main.dispatcher) {
+        // No health reply is queued, so a check of the refused host would fail the test.
+        for (host in listOf("", "192.168.1.10", "example.com", "http://127.0.0.1", "127.0.0.1:8400", "a\$b;c|d<e>")) {
+            val vm = viewModel()
+
+            vm.saveConnection(host, "8400", "good-token")
+            runCurrent()
+
+            assertEquals(host, "127.0.0.1", settings.settings.host)
+            assertEquals(host, ConnectionSettings.HOST_REQUIREMENT, vm.lastLog().message)
+        }
+    }
+
+    @Test
+    fun `localhost in any case and with spaces is saved in lower case (control)`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        repository.healthReplies += reachable
+
+        vm.saveConnection("  LocalHost ", "8400", "good-token")
+        advanceTimeBy(1_000)
+
+        assertEquals("localhost", settings.settings.host)
+        assertTrue(vm.state.value.connection is ConnectionStatus.Online)
+    }
+
+    @Test
     fun `a token that cannot be sent in a header is refused and not saved`() = runTest(main.dispatcher) {
         val vm = viewModel()
 
-        vm.saveConnection("10.0.0.5", "8400", "dpcms_abc def")
+        vm.saveConnection("127.0.0.1", "8400", "dpcms_abc def")
         runCurrent()
 
         assertEquals("good-token", settings.settings.token)
@@ -82,7 +108,7 @@ class AudienceViewModelTest {
         val vm = viewModel()
         repository.healthReplies += reachable
 
-        vm.saveConnection("10.0.0.5", "8400", "  dpcms_new-Token_1  ")
+        vm.saveConnection("127.0.0.1", "8400", "  dpcms_new-Token_1  ")
         advanceTimeBy(1_000)
 
         assertEquals("dpcms_new-Token_1", settings.settings.token)
@@ -95,7 +121,7 @@ class AudienceViewModelTest {
         settings.tokenStorable = false
         repository.healthReplies += reachable
 
-        vm.saveConnection("10.0.0.5", "8400", "dpcms_new-Token_1")
+        vm.saveConnection("127.0.0.1", "8400", "dpcms_new-Token_1")
         advanceTimeBy(1_000)
 
         assertEquals("dpcms_new-Token_1", vm.state.value.settings.token)
@@ -107,7 +133,7 @@ class AudienceViewModelTest {
         val vm = viewModel()
         repository.healthReplies += reachable
 
-        vm.saveConnection("10.0.0.5", "8400", "dpcms_new-Token_1")
+        vm.saveConnection("127.0.0.1", "8400", "dpcms_new-Token_1")
         advanceTimeBy(1_000)
 
         assertFalse(vm.state.value.log.any { it.message.contains("could not be stored securely") })
@@ -119,9 +145,9 @@ class AudienceViewModelTest {
         repository.healthReplies += 3_000L to ApiResult.NetworkError("timeout")
         repository.healthReplies += reachable
 
-        vm.saveConnection("10.0.0.9", "8400", "good-token")
+        vm.saveConnection("localhost", "8400", "good-token")
         runCurrent()
-        vm.saveConnection("10.0.0.5", "8400", "good-token")
+        vm.saveConnection("127.0.0.1", "8400", "good-token")
         advanceTimeBy(5_000)
 
         assertTrue(vm.state.value.connection is ConnectionStatus.Online)
@@ -142,17 +168,17 @@ class AudienceViewModelTest {
     fun `the device address cannot change while a play is open but the token can`() = runTest(main.dispatcher) {
         val vm = viewModel()
         repository.playReplies += accepted
-        vm.startPlay()
+        vm.startPlay("")
         runCurrent()
         assertNotNull(vm.state.value.playback.activePlay)
 
-        vm.saveConnection("10.0.0.9", "8400", "good-token")
+        vm.saveConnection("localhost", "8400", "good-token")
         runCurrent()
-        assertEquals("10.0.0.5", settings.settings.host)
+        assertEquals("127.0.0.1", settings.settings.host)
         assertTrue(vm.lastLog().message.contains("before changing the device address"))
 
         repository.healthReplies += reachable
-        vm.saveConnection("10.0.0.5", "8400", "fixed-token")
+        vm.saveConnection("127.0.0.1", "8400", "fixed-token")
         advanceTimeBy(1_000)
         assertEquals("fixed-token", settings.settings.token)
     }
@@ -162,17 +188,17 @@ class AudienceViewModelTest {
         val vm = viewModel()
         repository.healthReplies += reachable
 
-        vm.saveConnection("10.0.0.9", "8400", "good-token")
+        vm.saveConnection("localhost", "8400", "good-token")
         advanceTimeBy(1_000)
 
-        assertEquals("10.0.0.9", settings.settings.host)
+        assertEquals("localhost", settings.settings.host)
     }
 
     @Test
     fun `a closing event stuck on 503 can be discarded so a new play can start`() = runTest(main.dispatcher) {
         val vm = viewModel()
         repository.playReplies += listOf(accepted, storageUnavailable, storageUnavailable)
-        vm.startPlay()
+        vm.startPlay("")
         runCurrent()
         vm.endPlay(PlayEventType.COMPLETED, null)
         runCurrent()
@@ -198,7 +224,7 @@ class AudienceViewModelTest {
     fun `a discarded start leaves no play open`() = runTest(main.dispatcher) {
         val vm = viewModel()
         repository.playReplies += storageUnavailable
-        vm.startPlay()
+        vm.startPlay("")
         runCurrent()
 
         vm.discardPending()
@@ -209,13 +235,43 @@ class AudienceViewModelTest {
     }
 
     @Test
+    fun `a typed content duration is sent with the start in milliseconds`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        repository.playReplies += accepted
+
+        vm.startPlay(" 600 ")
+        runCurrent()
+
+        assertEquals(600_000L, repository.sentEvents.single().expectedDurationMs)
+    }
+
+    @Test
+    fun `an invalid content duration sends nothing and says why`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+
+        listOf("4", "7201", "1.5", "ten").forEach { text ->
+            vm.startPlay(text)
+            runCurrent()
+            assertTrue(text, vm.lastLog().message.contains("Content duration must be"))
+        }
+
+        assertTrue(repository.sentEvents.isEmpty())
+        assertNull(vm.state.value.playback.pending)
+        // Control: a blank duration starts the play without one.
+        repository.playReplies += accepted
+        vm.startPlay("  ")
+        runCurrent()
+        assertNull(repository.sentEvents.single().expectedDurationMs)
+    }
+
+    @Test
     fun `a pending event is on disk before it is sent`() = runTest(main.dispatcher) {
         val vm = viewModel()
         var savedWhenSent: PlayEvent? = null
         repository.onPlayEvent = { savedWhenSent = playbacks.state?.pending }
         repository.playReplies += accepted
 
-        vm.startPlay()
+        vm.startPlay("")
         runCurrent()
 
         assertEquals(repository.sentEvents.single(), savedWhenSent)
@@ -226,7 +282,7 @@ class AudienceViewModelTest {
     @Test
     fun `after a restart the pending start is resent with the same ids`() = runTest(main.dispatcher) {
         repository.playReplies += storageUnavailable
-        viewModel().startPlay()
+        viewModel().startPlay("")
         runCurrent()
         val first = repository.sentEvents.single()
 
@@ -242,7 +298,7 @@ class AudienceViewModelTest {
     @Test
     fun `after a restart the open play can still be closed with its own play id`() = runTest(main.dispatcher) {
         repository.playReplies += accepted
-        viewModel().startPlay()
+        viewModel().startPlay("")
         runCurrent()
         val playId = repository.sentEvents.single().playId
 
@@ -262,7 +318,7 @@ class AudienceViewModelTest {
     fun `a pending closing event is resent with the same ids after a restart`() = runTest(main.dispatcher) {
         repository.playReplies += listOf(accepted, storageUnavailable)
         val vm = viewModel()
-        vm.startPlay()
+        vm.startPlay("")
         runCurrent()
         vm.endPlay(PlayEventType.INTERRUPTED, "user_skipped")
         runCurrent()
@@ -281,7 +337,7 @@ class AudienceViewModelTest {
     fun `a discarded event is not resent after a restart`() = runTest(main.dispatcher) {
         repository.playReplies += storageUnavailable
         val vm = viewModel()
-        vm.startPlay()
+        vm.startPlay("")
         runCurrent()
         vm.discardPending()
         runCurrent()
@@ -311,7 +367,7 @@ class AudienceViewModelTest {
         repository.playReplies += accepted
         val vm = viewModel()
 
-        vm.startPlay()
+        vm.startPlay("")
         runCurrent()
 
         assertEquals(1, repository.sentEvents.size)

@@ -33,11 +33,12 @@ class PlaybackReducer @Inject constructor(private val events: PlayEventFactory) 
      * Records a pending `started` event for a new play.
      *
      * @param state the current state; must satisfy [PlaybackState.canStart].
+     * @param expectedDurationMs how long the content is expected to play, or `null` when unknown.
      * @return the state with the new event pending.
      */
-    fun requestStart(state: PlaybackState): PlaybackState {
+    fun requestStart(state: PlaybackState, expectedDurationMs: Long?): PlaybackState {
         check(state.canStart) { "Cannot start a play in this state" }
-        return state.copy(pending = events.started(requireNotNull(state.campaign)))
+        return state.copy(pending = events.started(requireNotNull(state.campaign), expectedDurationMs))
     }
 
     /**

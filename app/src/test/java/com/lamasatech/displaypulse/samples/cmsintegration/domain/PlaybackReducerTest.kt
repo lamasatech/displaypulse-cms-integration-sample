@@ -19,7 +19,7 @@ class PlaybackReducerTest {
 
     @Test
     fun `start is acknowledged into an active play`() {
-        val pending = reducer.requestStart(ready)
+        val pending = reducer.requestStart(ready, null)
         assertFalse(pending.canStart)
         val active = reducer.acknowledged(pending)
         assertNull(active.pending)
@@ -29,16 +29,16 @@ class PlaybackReducerTest {
 
     @Test
     fun `while an event is pending nothing else can be started, ended or switched`() {
-        val pending = reducer.requestStart(ready)
+        val pending = reducer.requestStart(ready, null)
         assertFalse(pending.canStart)
         assertFalse(pending.canEnd)
         assertFalse(pending.canChangeCampaign)
-        assertThrows(IllegalStateException::class.java) { reducer.requestStart(pending) }
+        assertThrows(IllegalStateException::class.java) { reducer.requestStart(pending, null) }
     }
 
     @Test
     fun `terminal acknowledgement closes the play`() {
-        val active = reducer.acknowledged(reducer.requestStart(ready))
+        val active = reducer.acknowledged(reducer.requestStart(ready, null))
         val closing = reducer.requestEnd(active, PlayEventType.COMPLETED, null)
         assertEquals(active.activePlay?.playId, closing.pending?.playId)
         val closed = reducer.acknowledged(closing)
@@ -48,7 +48,7 @@ class PlaybackReducerTest {
 
     @Test
     fun `rejected start leaves no play on screen`() {
-        val rejected = reducer.rejected(reducer.requestStart(ready))
+        val rejected = reducer.rejected(reducer.requestStart(ready, null))
         assertNull(rejected.activePlay)
         assertNull(rejected.pending)
         assertTrue(rejected.canStart)
@@ -56,7 +56,7 @@ class PlaybackReducerTest {
 
     @Test
     fun `rejected terminal keeps the play open so it can be ended again`() {
-        val active = reducer.acknowledged(reducer.requestStart(ready))
+        val active = reducer.acknowledged(reducer.requestStart(ready, null))
         val rejected = reducer.rejected(reducer.requestEnd(active, PlayEventType.FAILED, "boom"))
         assertEquals(active.activePlay, rejected.activePlay)
         assertTrue(rejected.canEnd)
@@ -64,7 +64,7 @@ class PlaybackReducerTest {
 
     @Test
     fun `device-ended play is closed locally so a new play can start`() {
-        val active = reducer.acknowledged(reducer.requestStart(ready))
+        val active = reducer.acknowledged(reducer.requestStart(ready, null))
         val ended = reducer.endedByDevice(reducer.requestEnd(active, PlayEventType.COMPLETED, null))
         assertNull(ended.activePlay)
         assertNull(ended.pending)
@@ -73,8 +73,8 @@ class PlaybackReducerTest {
 
     @Test
     fun `cannot start twice, end without a play, or switch campaign mid-play`() {
-        val active = reducer.acknowledged(reducer.requestStart(ready))
-        assertThrows(IllegalStateException::class.java) { reducer.requestStart(active) }
+        val active = reducer.acknowledged(reducer.requestStart(ready, null))
+        assertThrows(IllegalStateException::class.java) { reducer.requestStart(active, null) }
         assertThrows(IllegalStateException::class.java) {
             reducer.requestEnd(ready, PlayEventType.COMPLETED, null)
         }
@@ -83,7 +83,7 @@ class PlaybackReducerTest {
 
     @Test
     fun `cannot start without a campaign`() {
-        assertThrows(IllegalStateException::class.java) { reducer.requestStart(PlaybackState()) }
+        assertThrows(IllegalStateException::class.java) { reducer.requestStart(PlaybackState(), null) }
     }
 
     @Test
@@ -93,7 +93,7 @@ class PlaybackReducerTest {
 
     @Test
     fun `discarding a closing event also closes the play`() {
-        val active = reducer.acknowledged(reducer.requestStart(ready))
+        val active = reducer.acknowledged(reducer.requestStart(ready, null))
         val discarded = reducer.discarded(reducer.requestEnd(active, PlayEventType.COMPLETED, null))
         assertNull(discarded.pending)
         assertNull(discarded.activePlay)
@@ -102,7 +102,7 @@ class PlaybackReducerTest {
 
     @Test
     fun `discarding a start leaves no play open`() {
-        val discarded = reducer.discarded(reducer.requestStart(ready))
+        val discarded = reducer.discarded(reducer.requestStart(ready, null))
         assertNull(discarded.pending)
         assertNull(discarded.activePlay)
         assertTrue(discarded.canStart)
@@ -110,14 +110,14 @@ class PlaybackReducerTest {
 
     @Test
     fun `discarding with nothing pending changes nothing, even with a play open`() {
-        val active = reducer.acknowledged(reducer.requestStart(ready))
+        val active = reducer.acknowledged(reducer.requestStart(ready, null))
         assertEquals(active, reducer.discarded(active))
     }
 
     @Test
     fun `the device address may change only when nothing is open or waiting`() {
         assertTrue(ready.canChangeDevice)
-        assertFalse(reducer.requestStart(ready).canChangeDevice)
-        assertFalse(reducer.acknowledged(reducer.requestStart(ready)).canChangeDevice)
+        assertFalse(reducer.requestStart(ready, null).canChangeDevice)
+        assertFalse(reducer.acknowledged(reducer.requestStart(ready, null)).canChangeDevice)
     }
 }

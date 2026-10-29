@@ -23,9 +23,11 @@ class PlayEventFactory @Inject constructor(
      * Every call produces a new play id, so adjacent repeats of the same content remain distinct plays.
      *
      * @param campaign the campaign the play belongs to.
+     * @param expectedDurationMs how long the content is expected to play, or `null` when unknown.
      * @return a [PlayEventType.STARTED] event.
+     * @throws IllegalArgumentException if [expectedDurationMs] is outside the accepted range.
      */
-    fun started(campaign: Campaign): PlayEvent = PlayEvent(
+    fun started(campaign: Campaign, expectedDurationMs: Long?): PlayEvent = PlayEvent(
         eventId = ids.newId(),
         type = PlayEventType.STARTED,
         playId = ids.newId(),
@@ -33,6 +35,7 @@ class PlayEventFactory @Inject constructor(
         contentId = campaign.contentId,
         occurredAtMs = clock.nowMs(),
         reason = null,
+        expectedDurationMs = expectedDurationMs,
     )
 
     /**

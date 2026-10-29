@@ -10,6 +10,7 @@
     <string name="hint_port">Port (default 8400)</string>
     <string name="hint_token">Site token</string>
     <string name="hint_campaign_name">Campaign name</string>
+    <string name="hint_content_duration">Content duration in seconds (optional, 5–7200)</string>
 
     <string name="action_save_check">Save and check</string>
     <string name="action_health">Check health</string>
