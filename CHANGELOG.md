@@ -5,7 +5,7 @@ All notable changes to this project are listed here. Versions follow
 
 ## [Unreleased]
 
-## [1.0.1] - 2026-10-29
+## [1.1.0] - 2026-11-01
 
 Needs a DisplayPulse app that supports play events API 1.1. Earlier versions of the
 DisplayPulse app refuse every play event from this version with `400`.
@@ -54,6 +54,6 @@ First public release of the sample.
 - README with prerequisites, troubleshooting, limitations and links to the API reference.
 - Apache License 2.0.
 
-[Unreleased]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.0.1...HEAD
-[1.0.1]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.0.0...v1.0.1
+[Unreleased]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/releases/tag/v1.0.0

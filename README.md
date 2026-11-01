@@ -30,6 +30,8 @@ leaves out.
 The sample runs **on the same device as the DisplayPulse app** and talks to it at `127.0.0.1`.
 Players on a separate device on the local network are not supported yet; support for them is planned.
 
+Requires the DisplayPulse app with play events API 1.1.
+
 | Requirement | Why |
 |-------------|-----|
 | A DisplayPulse device running the DisplayPulse app (Audience feature), with this sample installed on it | The sample talks to the DisplayPulse app on the same device; nothing goes through the cloud. |
@@ -148,7 +150,8 @@ The local API (endpoints, request and response fields, errors and retry rules) i
 the DisplayPulse developer site:
 
 - [Campaign integration overview](https://displaypulse.com/docs/audience/campaign-integration/)
-- [API reference](https://displaypulse.com/docs/audience/campaign-integration/api-reference/)
+- [Reporting plays](https://displaypulse.com/docs/audience/campaign-integration/reporting-plays/)
+- [API reference](https://displaypulse.com/docs/audience/campaign-integration/api-reference/) and [interactive reference](https://displaypulse.com/docs/audience/reference/)
 - [Android guide](https://displaypulse.com/docs/audience/campaign-integration/platforms/android/)
 
 ## Limitations
@@ -170,7 +173,7 @@ To try the sample without building it, install the signed APK from the latest
 [release](https://github.com/lamasatech/displaypulse-cms-integration-sample/releases/latest):
 
 ```bash
-adb install displaypulse-cms-integration-sample-1.0.1.apk
+adb install displaypulse-cms-integration-sample-1.1.0.apk
 ```
 
 To build from source you need JDK 21 and the Android SDK with the API 36 platform. The sample runs
