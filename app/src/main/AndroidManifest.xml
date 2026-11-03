@@ -23,6 +23,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Live audience pushed by the DisplayPulse app (Audience feature) about once a second.
+             It is sent only to apps registered on a CMS connection. The signature permission
+             means only the Audience feature can deliver it, so other apps cannot fake figures. -->
+        <receiver
+            android:name=".data.broadcast.AudienceUpdateReceiver"
+            android:exported="true"
+            android:permission="com.lamasatech.audience.toolkit.permission.SEND_CMS_AUDIENCE">
+            <intent-filter>
+                <action android:name="com.lamasatech.audience.AUDIENCE_UPDATE" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

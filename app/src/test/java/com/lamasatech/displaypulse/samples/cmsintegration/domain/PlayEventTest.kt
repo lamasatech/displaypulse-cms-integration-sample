@@ -1,10 +1,12 @@
 package com.lamasatech.displaypulse.samples.cmsintegration.domain
 
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ActivePlay
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.Advertiser
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.Campaign
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ContentDuration
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventType
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventsApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -89,6 +91,48 @@ class PlayEventTest {
         }
         // Control: the same event without a duration is valid.
         PlayEvent("e", PlayEventType.COMPLETED, "p", null, null, 0, null)
+    }
+
+    @Test
+    fun `started names the advertiser only when asked to`() {
+        val named = campaign.copy(advertiser = "Acme Foods")
+        assertEquals("Acme Foods", factory.started(named, null, includeAdvertiser = true).advertiser)
+        assertNull(factory.started(named, null, includeAdvertiser = false).advertiser)
+        assertNull(factory.started(campaign, null, includeAdvertiser = true).advertiser)
+    }
+
+    @Test
+    fun `a closing event cannot carry an advertiser`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            PlayEvent("e", PlayEventType.COMPLETED, "p", null, null, 0, null, advertiser = "Acme Foods")
+        }
+    }
+
+    @Test
+    fun `an advertiser not in normalised form is refused on events and campaigns`() {
+        listOf(" Acme", "", "_unknown", "a".repeat(121), "A\u0000B").forEach { bad ->
+            assertThrows(bad, IllegalArgumentException::class.java) { campaign.copy(advertiser = bad) }
+            assertThrows(bad, IllegalArgumentException::class.java) {
+                PlayEvent("e", PlayEventType.STARTED, "p", "c", "x", 0, null, advertiser = bad)
+            }
+        }
+    }
+
+    @Test
+    fun `advertiser rules match the device`() {
+        assertEquals("Acme Foods", Advertiser.normalize("  Acme Foods\t"))
+        assertEquals("a".repeat(120), Advertiser.normalize("a".repeat(120)))
+        assertEquals("شركة", Advertiser.normalize("شركة"))
+        listOf("", "   ", "a".repeat(121), "Acme\nFoods", "Acme\u0085Foods", "_unknown", " _unknown ").forEach {
+            assertNull(it, Advertiser.normalize(it))
+        }
+    }
+
+    @Test
+    fun `the schema version follows the advertiser`() {
+        val named = campaign.copy(advertiser = "Acme Foods")
+        assertEquals("1.2", PlayEventsApi.versionFor(factory.started(named, null, includeAdvertiser = true)))
+        assertEquals("1.1", PlayEventsApi.versionFor(factory.started(named, null)))
     }
 
     @Test

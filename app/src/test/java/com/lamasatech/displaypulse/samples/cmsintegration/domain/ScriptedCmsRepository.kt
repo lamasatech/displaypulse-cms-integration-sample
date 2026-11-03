@@ -2,6 +2,7 @@ package com.lamasatech.displaypulse.samples.cmsintegration.domain
 
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ApiResult
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.AudienceSnapshot
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeviceHealth
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayReceipt
 
@@ -14,7 +15,7 @@ import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayRecei
 class ScriptedCmsRepository(private val replies: ArrayDeque<ApiResult<PlayReceipt>>) : CmsRepository {
     val sentEventIds = mutableListOf<String>()
 
-    override suspend fun health(): ApiResult<String> = error("not scripted")
+    override suspend fun health(): ApiResult<DeviceHealth> = error("not scripted")
 
     override suspend fun audienceCurrent(): ApiResult<AudienceSnapshot> = error("not scripted")
 

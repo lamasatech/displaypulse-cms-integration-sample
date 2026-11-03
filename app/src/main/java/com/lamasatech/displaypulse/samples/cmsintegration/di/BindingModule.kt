@@ -1,12 +1,17 @@
 package com.lamasatech.displaypulse.samples.cmsintegration.di
 
 import com.lamasatech.displaypulse.samples.cmsintegration.data.CmsRepositoryImpl
+import com.lamasatech.displaypulse.samples.cmsintegration.data.broadcast.InMemoryAudienceBroadcastFeed
+import com.lamasatech.displaypulse.samples.cmsintegration.data.broadcast.PackageManagerSigningIdentity
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.ConnectionSettingsStore
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.KeystoreTokenCipher
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.PlaybackStore
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.PrefsConnectionSettingsStore
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.PrefsPlaybackStore
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.TokenCipher
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.AppSigningIdentity
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.AudienceBroadcastFeed
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.AudienceBroadcastSink
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.Clock
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.CmsRepository
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.IdGenerator
@@ -47,4 +52,16 @@ abstract class BindingModule {
     /** Generates random UUIDs for every id the app creates. */
     @Binds
     abstract fun bindIdGenerator(impl: UuidIdGenerator): IdGenerator
+
+    /** The screen reads the same in-memory feed that the broadcast receiver writes. */
+    @Binds
+    abstract fun bindAudienceBroadcastFeed(impl: InMemoryAudienceBroadcastFeed): AudienceBroadcastFeed
+
+    /** The broadcast receiver writes into the in-memory feed. */
+    @Binds
+    abstract fun bindAudienceBroadcastSink(impl: InMemoryAudienceBroadcastFeed): AudienceBroadcastSink
+
+    /** Reads this app's package name and signing certificate from the package manager. */
+    @Binds
+    abstract fun bindAppSigningIdentity(impl: PackageManagerSigningIdentity): AppSigningIdentity
 }

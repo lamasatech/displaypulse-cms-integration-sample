@@ -15,6 +15,8 @@ import com.google.gson.annotations.SerializedName
  * @property reason explanation; set for `failed` and `interrupted` events only.
  * @property expectedDurationMs expected content duration; set for `started` events that declare
  * one. Records written by 1.0.0 do not have it and read back as no duration.
+ * @property advertiser advertiser named on a `started` event. Records written before 1.3.0 do not
+ * have it and read back as none, so their event is resent exactly as first sent.
  */
 data class StoredPlayEventDto(
     @SerializedName("event_id") val eventId: String?,
@@ -25,4 +27,5 @@ data class StoredPlayEventDto(
     @SerializedName("occurred_at_ms") val occurredAtMs: Long?,
     @SerializedName("reason") val reason: String?,
     @SerializedName("expected_duration_ms") val expectedDurationMs: Long?,
+    @SerializedName("advertiser") val advertiser: String? = null,
 )

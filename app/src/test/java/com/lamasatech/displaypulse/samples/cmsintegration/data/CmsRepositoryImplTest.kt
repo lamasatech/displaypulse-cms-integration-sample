@@ -82,6 +82,32 @@ class CmsRepositoryImplTest {
         assertEquals("600000", duration.toString())
     }
 
+    private val namedCampaign = campaign.copy(advertiser = "Acme Foods")
+
+    @Test
+    fun `a start that names the advertiser is sent as version 1_2`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(202).setBody("""{"status":"accepted","play_id":"p","receipt_id":1}"""))
+
+        repository.sendPlayEvent(factory.started(namedCampaign, null, includeAdvertiser = true))
+
+        val body = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        assertEquals("1.2", body["schema_version"].asString)
+        assertEquals("Acme Foods", body["advertiser"].asString)
+    }
+
+    @Test
+    fun `a start without the advertiser stays version 1_1 with no advertiser field (control)`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(202).setBody("""{"status":"accepted","play_id":"p","receipt_id":1}"""))
+
+        // The campaign names one, but the device did not accept it.
+        repository.sendPlayEvent(factory.started(namedCampaign, null, includeAdvertiser = false))
+
+        val body = JsonParser.parseString(server.takeRequest().body.readUtf8()).asJsonObject
+        // A 1.1 device refuses `advertiser` as an unknown field, so it must be absent, not null.
+        assertEquals("1.1", body["schema_version"].asString)
+        assertFalse(body.has("advertiser"))
+    }
+
     @Test
     fun `terminal event omits campaign and content ids and carries the reason`() = runTest {
         server.enqueue(MockResponse().setResponseCode(202).setBody("""{"status":"accepted","play_id":"p","receipt_id":1}"""))
@@ -181,6 +207,30 @@ class CmsRepositoryImplTest {
         val result = repository.health()
         assertTrue(result is ApiResult.Success)
         assertEquals("/health", server.takeRequest().path)
+    }
+
+    @Test
+    fun `health reads the play events versions the device lists`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200)
+            .setBody("""{"status":"ok","play_events_schema_versions":["1.1","1.2"]}"""))
+
+        val health = (repository.health() as ApiResult.Success).value
+
+        assertEquals(setOf("1.1", "1.2"), health.playEventVersions)
+        assertTrue(health.acceptsAdvertiser)
+    }
+
+    @Test
+    fun `a device that lists no versions accepts 1_1 only`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"status":"ok"}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"status":"ok","play_events_schema_versions":"1.2"}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"status":"ok","play_events_schema_versions":[1.2,null,"1.1"]}"""))
+
+        repeat(3) {
+            val health = (repository.health() as ApiResult.Success).value
+            assertEquals("reply $it", setOf("1.1"), health.playEventVersions)
+            assertFalse("reply $it", health.acceptsAdvertiser)
+        }
     }
 
     @Test

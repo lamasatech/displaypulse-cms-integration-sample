@@ -1,8 +1,10 @@
 package com.lamasatech.displaypulse.samples.cmsintegration.ui
 
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.AudienceSnapshot
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.BroadcastFeedState
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.Campaign
 import com.lamasatech.displaypulse.samples.cmsintegration.ui.audience.AudiencePresenter
+import com.lamasatech.displaypulse.samples.cmsintegration.ui.audience.LiveSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -90,5 +92,32 @@ class AudiencePresenterTest {
     fun `a polling error before any data shows only the error`() {
         val view = AudiencePresenter.present(null, campaign, error = "HTTP 403 tier_not_entitled")
         assertEquals("Error: HTTP 403 tier_not_entitled", view.status)
+    }
+
+    @Test
+    fun `figures from the broadcast say so and count broadcasts`() {
+        val feed = BroadcastFeedState(snapshot(activeCampaignId = "camp-1", ots = 9), receivedAtElapsedMs = 1L, received = 42)
+
+        val view = AudiencePresenter.present(feed.latest, campaign, source = LiveSource.BROADCAST, feed = feed)
+
+        assertEquals("measured · observed 2026-10-28T10:00:00Z · via broadcast #42", view.status)
+        assertEquals("9", kpi(view, "OTS"))
+        assertEquals("Campaign link: ✔ audience is attributed to this campaign", view.campaignLink)
+    }
+
+    @Test
+    fun `HTTP fallback says why the broadcast is not used`() {
+        val none = AudiencePresenter.present(snapshot(), campaign, source = LiveSource.HTTP)
+        assertTrue(none.status.endsWith("via HTTP (no broadcast received)"))
+
+        val stopped = AudiencePresenter.present(
+            snapshot(), campaign, source = LiveSource.HTTP, feed = BroadcastFeedState(received = 3, rejected = 2),
+        )
+        assertTrue(stopped.status.endsWith("via HTTP (broadcast stopped) · 2 unreadable broadcasts"))
+    }
+
+    @Test
+    fun `without a source the status is unchanged (control)`() {
+        assertEquals("measured · observed 2026-10-28T10:00:00Z", AudiencePresenter.present(snapshot(), campaign).status)
     }
 }

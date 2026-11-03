@@ -43,6 +43,22 @@ class PlaybackStateCodecTest {
     }
 
     @Test
+    fun `a named campaign and its pending start round-trip with the advertiser`() {
+        val named = campaign.copy(advertiser = "Acme Foods")
+        val state = PlaybackState(campaign = named, pending = pendingStart.copy(advertiser = "Acme Foods"))
+
+        assertEquals(state, codec.decode(codec.encode(state)))
+    }
+
+    @Test
+    fun `a stored advertiser the device would refuse is not read`() {
+        val named = campaign.copy(advertiser = "Acme Foods")
+        val json = codec.encode(PlaybackState(campaign = named)).replace("Acme Foods", "_unknown")
+
+        assertNull(codec.decode(json))
+    }
+
+    @Test
     fun `a record written by 1_0_x without a duration is still read`() {
         val json = """{"version":1,"campaign":{"id":"camp-1","name":"Demo","content_id":"content-1"},""" +
             """"pending":{"event_id":"evt-1","type":"started","play_id":"play-1","campaign_id":"camp-1",""" +

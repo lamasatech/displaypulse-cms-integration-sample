@@ -2,6 +2,7 @@ package com.lamasatech.displaypulse.samples.cmsintegration.domain
 
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ApiResult
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.AudienceSnapshot
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeviceHealth
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayReceipt
 import kotlinx.coroutines.delay
@@ -17,14 +18,14 @@ import kotlinx.coroutines.delay
  * @property onPlayEvent called with each play event as it arrives, before the reply.
  */
 class FakeCmsRepository : CmsRepository {
-    val healthReplies = ArrayDeque<Pair<Long, ApiResult<String>>>()
+    val healthReplies = ArrayDeque<Pair<Long, ApiResult<DeviceHealth>>>()
     var audienceReply: ApiResult<AudienceSnapshot> = ApiResult.NetworkError("not scripted")
     val playReplies = ArrayDeque<ApiResult<PlayReceipt>>()
     var audienceCalls = 0
     val sentEvents = mutableListOf<PlayEvent>()
     var onPlayEvent: (PlayEvent) -> Unit = {}
 
-    override suspend fun health(): ApiResult<String> {
+    override suspend fun health(): ApiResult<DeviceHealth> {
         val (delayMs, reply) = healthReplies.removeFirst()
         delay(delayMs)
         return reply

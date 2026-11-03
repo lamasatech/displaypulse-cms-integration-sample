@@ -5,6 +5,34 @@ All notable changes to this project are listed here. Versions follow
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-03
+
+Naming the advertiser needs a DisplayPulse app with play events API 1.2. With an earlier
+DisplayPulse app, everything else works as before and plays are reported without it.
+
+### Added
+
+- Live updates use the audience broadcast (`com.lamasatech.audience.AUDIENCE_UPDATE`) when this
+  app is registered as the CMS connection's Android recipient. The figures arrive about once a
+  second with no polling.
+- If no readable broadcast arrives for 3 seconds, live updates fall back to polling
+  `GET /audience/current`, and stop polling again as soon as broadcasts are back. The status line
+  says which source the figures came from, and the log records each switch.
+- The screen shows this app's package name and signing-certificate SHA-256 to register on the CMS
+  connection.
+- An optional **Advertiser** for each campaign. It is checked against the DisplayPulse app's
+  rules before the campaign is created: trimmed, at most 120 characters, no control characters,
+  and not `_unknown`.
+- When a campaign has an advertiser, **Start play** reads `GET /health` and sends the start as
+  play events API `1.2` with `advertiser` if `play_events_schema_versions` lists `1.2`. Otherwise
+  it sends `1.1` without it and logs why. If `/health` fails, nothing is sent.
+- The connection status shows the play events API versions the DisplayPulse app accepts.
+
+### Changed
+
+- A pending start keeps its advertiser and schema version across restarts, so it is resent
+  unchanged.
+
 ## [1.1.0] - 2026-11-01
 
 Needs a DisplayPulse app that supports play events API 1.1. Earlier versions of the
@@ -54,6 +82,7 @@ First public release of the sample.
 - README with prerequisites, troubleshooting, limitations and links to the API reference.
 - Apache License 2.0.
 
-[Unreleased]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.1.0...v1.3.0
 [1.1.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/releases/tag/v1.0.0

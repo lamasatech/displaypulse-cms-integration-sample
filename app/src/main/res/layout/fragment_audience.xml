@@ -79,6 +79,10 @@
             android:textColor="@color/text_primary" />
 
         <TextView
+            android:id="@+id/tvBroadcastRecipient"
+            style="@style/Mono" />
+
+        <TextView
             android:id="@+id/tvAudienceStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -120,6 +124,14 @@
             android:importantForAutofill="no"
             android:inputType="text" />
 
+        <EditText
+            android:id="@+id/etAdvertiser"
+            style="@style/Field"
+            android:hint="@string/hint_advertiser"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:maxLength="200" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnNewCampaign"
             android:layout_width="match_parent"
@@ -132,6 +144,10 @@
 
         <TextView
             android:id="@+id/tvContentId"
+            style="@style/Mono" />
+
+        <TextView
+            android:id="@+id/tvAdvertiser"
             style="@style/Mono" />
 
         <TextView

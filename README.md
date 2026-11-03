@@ -1,10 +1,10 @@
 # DisplayPulse CMS Integration Sample
 
 An Android sample that shows how a content management (CMS) or signage app integrates with the
-DisplayPulse app (Audience feature) over its local HTTP API:
+DisplayPulse app (Audience feature) over its local HTTP API and its audience broadcast:
 
 - check that the DisplayPulse app is reachable;
-- read live audience figures;
+- receive live audience figures by broadcast, with HTTP polling as the fallback;
 - report the lifecycle of every play of a campaign.
 
 The code is meant to be copied. Delivery rules such as retries with the same `event_id`, rate
@@ -30,7 +30,8 @@ leaves out.
 The sample runs **on the same device as the DisplayPulse app** and talks to it at `127.0.0.1`.
 Players on a separate device on the local network are not supported yet; support for them is planned.
 
-Requires the DisplayPulse app with play events API 1.1.
+Requires the DisplayPulse app with play events API 1.1. Naming the advertiser of a campaign also
+needs play events API 1.2; with an older DisplayPulse app, plays are reported without it.
 
 | Requirement | Why |
 |-------------|-----|
@@ -38,6 +39,7 @@ Requires the DisplayPulse app with play events API 1.1.
 | The local HTTP API switched on in the DisplayPulse app (port `8400` by default) | Every call goes to `http://127.0.0.1:8400`. `/health` answers even without a token. |
 | A **site token** (it starts with `dpcms_`) from a **CMS connection** that includes the device's site | Required for live figures and play events. Your DisplayPulse administrator creates the CMS connection in **Company settings → Integrations → CMS connections**, chooses its sites, and copies the token, which is shown once. |
 | The **Connect** plan or higher on the device's site | Without it the DisplayPulse app answers `403 tier_not_entitled`. |
+| Optional: this app registered as the **Android recipient** of the CMS connection | Live figures then arrive by broadcast, with no polling. Your administrator sets the app's package name and signing-certificate SHA-256 on the CMS connection; the sample shows both values under **Live updates**. Without it, the sample polls `GET /audience/current` instead. |
 
 ## Main screen
 
@@ -50,24 +52,43 @@ Work from the top section to the bottom; each section depends on the one above i
 | Host | `127.0.0.1` (pre-filled) or `localhost`: the DisplayPulse app on this device. Any other value is refused when you tap **Save and check**, and nothing is saved; see [Configuration and security](#configuration-and-security). |
 | Port | Port of the local API (default `8400`). |
 | Site token | The site token of your CMS connection (it starts with `dpcms_`). It is masked on screen and stored encrypted. |
-| Save and check | Stores the three values, then checks the connection. The status line shows *DisplayPulse app reachable* or *Unreachable: reason*. A token with spaces or characters picked up by copying from a document is refused. Host and port cannot change while a play is open or an event is waiting; the token can. |
+| Save and check | Stores the three values, then checks the connection. The status line shows *DisplayPulse app reachable* with the play events API versions it accepts, or *Unreachable: reason*. A token with spaces or characters picked up by copying from a document is refused. Host and port cannot change while a play is open or an event is waiting; the token can. |
 | Check health | Checks the connection again without changing the saved values. |
 
 ### 2. Live audience
 
-Shows the latest figures returned by the DisplayPulse app as tiles. Turn **Live updates** on to
-refresh them about every 1.2 seconds, or off to stop. The DisplayPulse app allows about one read
-per second per token, so a second app polling with the same token will see `429` replies; the
-sample then waits as long as it is asked to before reading again.
+Shows the latest figures from the DisplayPulse app as tiles. Turn **Live updates** on to keep
+them current, or off to stop. The status line ends with where the figures came from.
 
-If a read fails, the tiles keep the last figures received and the status line says so.
-On `401` or `403` live updates switch themselves off, because repeating the request cannot
-succeed; fix the token or plan, then switch them on again.
+**Broadcast first.** When this app is registered on the CMS connection, the DisplayPulse app
+pushes the figures about once a second as the `com.lamasatech.audience.AUDIENCE_UPDATE`
+broadcast. Its `payload_json` extra holds the same JSON as `GET /audience/current`, with the same
+fields for the site's plan. The status line shows *via broadcast #N*, and nothing is polled.
+
+**HTTP as the fallback.** If no readable broadcast has arrived for 3 seconds (the app is not
+registered, the Audience feature restarted, or the payloads cannot be read), the sample reads
+`GET /audience/current` about every 1.2 seconds instead. The status line shows *via HTTP (no
+broadcast received)* or *via HTTP (broadcast stopped)*, and the log records each switch. As soon
+as a broadcast arrives again, polling stops.
+
+The line under the switch shows the package name and signing-certificate SHA-256 to register.
+Each build signed with a different key has a different SHA-256.
+
+The DisplayPulse app allows about one HTTP read per second per token, so a second app polling
+with the same token will see `429` replies; the sample then waits as long as it is asked to
+before reading again. If a read fails, the tiles keep the last figures received and the status
+line says so. On `401` or `403` live updates switch themselves off, because repeating the request
+cannot succeed; fix the token or plan, then switch them on again.
+
+Live updates pause while the sample is in the background. Broadcasts are still received then, so
+the figures are current again as soon as it returns.
 
 ### 3. Campaign and playback
 
 1. Tap **New campaign (generate UUID)**. The campaign id appears. Optionally type a
-   campaign name first.
+   campaign name and an **Advertiser** first. The advertiser names the brand behind the
+   campaign, so DisplayPulse reports show it instead of `_unknown`. It is trimmed and must be
+   at most 120 characters, with no control characters, and not `_unknown`.
 2. Optionally type the **Content duration** in whole seconds (5 to 7200), then tap
    **Start play** when your content begins. A play id appears and the status changes to
    *Playing*. The duration is sent as `expected_duration_ms`; leave it empty when the length
@@ -76,6 +97,11 @@ succeed; fix the token or plan, then switch them on again.
    30 seconds after the declared duration, or after 5 minutes when no duration was sent. So
    declare the duration for content longer than 5 minutes, or its audience after that point
    is not counted and **Complete** is answered `409`.
+   When the campaign has an advertiser, **Start play** first reads `GET /health`. If the
+   DisplayPulse app lists play events API `1.2` in `play_events_schema_versions`, the start is
+   sent as schema `1.2` with `advertiser`. Otherwise it is sent as `1.1` without it, and the log
+   says so. If the DisplayPulse app cannot be reached, nothing is sent; tap **Start play** again.
+   A campaign without an advertiser always uses `1.1`.
 3. End the play with **Complete**, **Fail** or **Interrupt**. These are only available
    while a play is active. Fail sends the reason `player_error` and Interrupt sends
    `user_skipped`, as examples of what a player would report.
@@ -132,11 +158,17 @@ says so in the log. If a write fails, the log says so too, and the event is stil
 | *Host must be 127.0.0.1 or localhost* | Another address, a host name, or a value with a scheme or port was entered | Enter `127.0.0.1`. The port goes in its own field. |
 | *… is not this device; request not sent* | The host is, or resolves to, another device | Use `127.0.0.1`. The sample only connects to the DisplayPulse app on the same device, because the token travels over plain HTTP. |
 | *Site token contains a space or a character that cannot be sent* | The token was copied with a hidden character, such as a non-breaking space | Paste it again from a plain-text source, or type it. |
+| *via HTTP (no broadcast received)* | This app is not registered as the CMS connection's Android recipient, the registered SHA-256 is not this build's, or the plan does not include the live feed | Register the package and SHA-256 shown under **Live updates**. A build signed with another key needs its own SHA-256. Polling keeps the figures current meanwhile. |
+| *via HTTP (broadcast stopped)* | Broadcasts arrived earlier but none for 3 seconds, for example while the Audience feature restarts | Nothing; the sample polls until broadcasts are back, then stops polling. |
+| *N unreadable broadcasts* | A broadcast arrived without a readable `payload_json` | The figures from it are ignored, and polling takes over if no readable one follows. Check the payload with `adb logcat -s AudienceUpdateReceiver`. |
 | `401 unauthorized` | Token missing or not accepted, or the CMS connection was rotated or revoked | Enter the current site token of your CMS connection. Live updates switch off until you turn them on again. |
 | `403 tier_not_entitled` | The site's plan does not include this feature | Ask your administrator to check the plan (Connect or higher). Play events stay pending until it's fixed; live updates switch off until you turn them on again. |
 | `403 connection_identity_unavailable` | The CMS connection was created or changed a moment ago and is still reaching the device | Wait a few minutes, then tap **Retry pending event**. |
 | `429 too_many_requests` | More than about one feed read per second on this token | Slow down, or give each app its own token. The sample waits and retries play events automatically. |
 | `409 terminal_conflict` on Complete | The DisplayPulse app already ended this play (for example after its open-play timeout) | Nothing; the sample closes the play. Start a new play. |
+| *… reported without its advertiser* | The DisplayPulse app does not list play events API `1.2` on `/health` | Update the DisplayPulse app. The play itself is reported normally. |
+| *Play not started: could not ask the device whether it accepts an advertiser* | `/health` failed when a play for a campaign with an advertiser was started | Check the connection, then tap **Start play** again. |
+| *Advertiser must be at most 120 characters …* | The advertiser is too long, contains a control character, or is `_unknown` | Correct it; leave it empty for none. |
 | `400 clock_invalid` | The device clock is wrong, or an end time is before the start | Turn on automatic (network) date and time on the device. |
 | Play accepted (`202`) but no audience in reports | The start arrived more than 30 seconds after its `occurred_at` time, for example because it waited while the DisplayPulse app was unreachable | Send the start as soon as content appears, and keep the device on network time. |
 | `503 storage_unavailable` | The event could not be stored, or play reporting is switched off in the DisplayPulse app | The event stays pending; tap **Retry pending event**. If it keeps failing, tap **Discard pending event**. |
@@ -162,6 +194,9 @@ This is a sample. Before you build a production player on it, note what it does 
   separate device on the local network are not supported yet.
 - **The pending event is resent when the sample is opened.** A player that runs unattended should
   also start itself after a device reboot, so it resends without waiting for someone to open it.
+- **The broadcast needs the app to have been opened once.** Android does not deliver broadcasts
+  to an app that has never been started since it was installed or that was force-stopped. A
+  player that runs unattended should start itself after a reboot.
 - **The release build is not minified.** A release built from source is unsigned; sign it with
   your own key. The APK published on the
   [Releases](https://github.com/lamasatech/displaypulse-cms-integration-sample/releases) page is
@@ -173,7 +208,7 @@ To try the sample without building it, install the signed APK from the latest
 [release](https://github.com/lamasatech/displaypulse-cms-integration-sample/releases/latest):
 
 ```bash
-adb install displaypulse-cms-integration-sample-1.1.0.apk
+adb install displaypulse-cms-integration-sample-1.3.0.apk
 ```
 
 To build from source you need JDK 21 and the Android SDK with the API 36 platform. The sample runs
@@ -197,7 +232,7 @@ The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 ```
 app/src/main/java/com/lamasatech/displaypulse/samples/cmsintegration/
 ├── domain/   Pure Kotlin: models, playback state machine, event sending and retry rules
-├── data/     Retrofit API, DTOs, mappers, repository, encrypted and on-disk stores
+├── data/     Retrofit API, DTOs, mappers, repository, broadcast receiver, encrypted and on-disk stores
 ├── di/       Hilt modules
 └── ui/       Main screen (ui/audience): fragment, view model, presenter
 ```
@@ -217,6 +252,11 @@ send for a play event.
   refuses any connection that resolves to another address before the request, and the token in it,
   is sent. Requests never go through a proxy. The config trusts only the system's certificate
   authorities.
+- The broadcast receiver is protected by the
+  `com.lamasatech.audience.toolkit.permission.SEND_CMS_AUDIENCE` signature permission, so only
+  the DisplayPulse app's Audience feature can deliver it; another app cannot send fake figures.
+  The DisplayPulse app in turn sends it only to the package and certificate registered on the CMS
+  connection.
 - Debug builds log HTTP requests and responses to logcat with the `Authorization` header
   hidden. Release builds log nothing.
 - App data backup is switched off, so the stored data is not copied to cloud backups.

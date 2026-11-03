@@ -89,7 +89,9 @@ class AudienceFragment : Fragment() {
         }
         btnHealth.setOnClickListener { viewModel.checkHealth() }
         switchPolling.setOnCheckedChangeListener { _, checked -> viewModel.setPolling(checked) }
-        btnNewCampaign.setOnClickListener { viewModel.createCampaign(etCampaignName.text.toString()) }
+        btnNewCampaign.setOnClickListener {
+            viewModel.createCampaign(etCampaignName.text.toString(), etAdvertiser.text.toString())
+        }
         btnStart.setOnClickListener { viewModel.startPlay(etContentDuration.text.toString()) }
         btnComplete.setOnClickListener { viewModel.endPlay(PlayEventType.COMPLETED, null) }
         btnFail.setOnClickListener { viewModel.endPlay(PlayEventType.FAILED, REASON_FAILED) }
@@ -103,8 +105,11 @@ class AudienceFragment : Fragment() {
         renderConnection(state.connection)
         // Setting isChecked fires the listener only on a real change, so the loop stays quiet.
         if (switchPolling.isChecked != state.polling) switchPolling.isChecked = state.polling
+        renderRecipient(state.recipient)
 
-        val view = AudiencePresenter.present(state.audience, state.playback.campaign, state.audienceError)
+        val view = AudiencePresenter.present(
+            state.audience, state.playback.campaign, state.audienceError, state.liveSource, state.broadcast,
+        )
         tvAudienceStatus.text = view.status
         renderKpis(view.kpis)
         tvDemographics.text = view.demographics
@@ -124,12 +129,24 @@ class AudienceFragment : Fragment() {
         etPort.setText(String.format(Locale.ROOT, "%d", state.settings.port))
         etToken.setText(state.settings.token)
         etCampaignName.setText(state.playback.campaign?.name.orEmpty())
+        etAdvertiser.setText(state.playback.campaign?.advertiser.orEmpty())
+    }
+
+    private fun renderRecipient(recipient: BroadcastRecipient?) = with(binding.tvBroadcastRecipient) {
+        text = recipient?.let {
+            getString(
+                R.string.broadcast_recipient,
+                it.packageName,
+                it.signingCertificateSha256 ?: getString(R.string.broadcast_recipient_unknown),
+            )
+        }.orEmpty()
     }
 
     private fun renderConnection(status: ConnectionStatus) = with(binding.tvConnection) {
         val (text, colorRes) = when (status) {
             ConnectionStatus.Unknown -> getString(R.string.status_unknown) to R.color.text_dim
-            is ConnectionStatus.Online -> getString(R.string.status_online) to R.color.status_ok
+            is ConnectionStatus.Online ->
+                getString(R.string.status_online, status.health.playEventVersions.sorted().joinToString()) to R.color.status_ok
             is ConnectionStatus.Offline -> getString(R.string.status_offline, status.reason) to R.color.status_error
         }
         this.text = text
@@ -156,6 +173,11 @@ class AudienceFragment : Fragment() {
         tvCampaignId.text = campaign?.let { getString(R.string.campaign_id_format, it.id) }
             ?: getString(R.string.campaign_none)
         tvContentId.text = campaign?.let { getString(R.string.content_id_format, it.contentId) }.orEmpty()
+        tvAdvertiser.text = when {
+            campaign == null -> ""
+            campaign.advertiser == null -> getString(R.string.advertiser_none)
+            else -> getString(R.string.advertiser_format, campaign.advertiser)
+        }
         tvPlayState.text = playback.activePlay?.let { getString(R.string.play_active_format, it.playId) }
             ?: getString(R.string.play_idle)
 

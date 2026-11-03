@@ -31,14 +31,14 @@ class PlaybackStateCodec @Inject constructor(private val gson: Gson) {
     fun encode(state: PlaybackState): String = gson.toJson(
         StoredPlaybackDto(
             version = VERSION,
-            campaign = state.campaign?.let { StoredCampaignDto(it.id, it.name, it.contentId) },
+            campaign = state.campaign?.let { StoredCampaignDto(it.id, it.name, it.contentId, it.advertiser) },
             activePlay = state.activePlay?.let {
                 StoredActivePlayDto(it.playId, it.campaignId, it.contentId, it.startedAtMs)
             },
             pending = state.pending?.let {
                 StoredPlayEventDto(
                     it.eventId, it.type.wireName, it.playId, it.campaignId, it.contentId, it.occurredAtMs, it.reason,
-                    it.expectedDurationMs,
+                    it.expectedDurationMs, it.advertiser,
                 )
             },
         )
@@ -59,7 +59,7 @@ class PlaybackStateCodec @Inject constructor(private val gson: Gson) {
 
     private fun StoredPlaybackDto.toDomain(): PlaybackState {
         val state = PlaybackState(
-            campaign = campaign?.let { Campaign(required(it.id), it.name.orEmpty(), required(it.contentId)) },
+            campaign = campaign?.let { Campaign(required(it.id), it.name.orEmpty(), required(it.contentId), it.advertiser) },
             activePlay = activePlay?.let {
                 ActivePlay(required(it.playId), required(it.campaignId), required(it.contentId), required(it.startedAtMs))
             },
@@ -86,6 +86,7 @@ class PlaybackStateCodec @Inject constructor(private val gson: Gson) {
         occurredAtMs = required(occurredAtMs),
         reason = reason,
         expectedDurationMs = expectedDurationMs,
+        advertiser = advertiser,
     )
 
     private fun <T : Any> required(value: T?): T = requireNotNull(value) { "a required field is missing" }
@@ -94,7 +95,8 @@ class PlaybackStateCodec @Inject constructor(private val gson: Gson) {
         /**
          * Format version of the stored record. Bump it when the record changes incompatibly. Adding
          * the optional `expected_duration_ms` in 1.0.1 is compatible: a 1.0.0 record reads as no
-         * duration, so its pending event is still resent.
+         * duration, so its pending event is still resent. The optional `advertiser` added in 1.3.0
+         * is compatible the same way.
          */
         const val VERSION = 1
     }

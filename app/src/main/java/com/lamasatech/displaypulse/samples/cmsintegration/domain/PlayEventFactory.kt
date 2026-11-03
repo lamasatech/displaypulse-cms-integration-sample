@@ -24,10 +24,12 @@ class PlayEventFactory @Inject constructor(
      *
      * @param campaign the campaign the play belongs to.
      * @param expectedDurationMs how long the content is expected to play, or `null` when unknown.
+     * @param includeAdvertiser `true` to name the campaign's advertiser, when it has one. Pass it
+     * only for a device that accepts it ([com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeviceHealth.acceptsAdvertiser]).
      * @return a [PlayEventType.STARTED] event.
      * @throws IllegalArgumentException if [expectedDurationMs] is outside the accepted range.
      */
-    fun started(campaign: Campaign, expectedDurationMs: Long?): PlayEvent = PlayEvent(
+    fun started(campaign: Campaign, expectedDurationMs: Long?, includeAdvertiser: Boolean = false): PlayEvent = PlayEvent(
         eventId = ids.newId(),
         type = PlayEventType.STARTED,
         playId = ids.newId(),
@@ -36,6 +38,7 @@ class PlayEventFactory @Inject constructor(
         occurredAtMs = clock.nowMs(),
         reason = null,
         expectedDurationMs = expectedDurationMs,
+        advertiser = campaign.advertiser.takeIf { includeAdvertiser },
     )
 
     /**

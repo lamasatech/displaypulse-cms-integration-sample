@@ -1,5 +1,7 @@
 package com.lamasatech.displaypulse.samples.cmsintegration.ui.audience
 
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeviceHealth
+
 /** Whether the device answered the last health check. */
 sealed interface ConnectionStatus {
 
@@ -9,9 +11,9 @@ sealed interface ConnectionStatus {
     /**
      * The device answered.
      *
-     * @property detail text of the device's reply.
+     * @property health the device's reply, including the play events API versions it accepts.
      */
-    data class Online(val detail: String) : ConnectionStatus
+    data class Online(val health: DeviceHealth) : ConnectionStatus
 
     /**
      * The device did not answer.

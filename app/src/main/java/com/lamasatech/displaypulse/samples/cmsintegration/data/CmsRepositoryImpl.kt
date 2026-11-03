@@ -7,6 +7,7 @@ import com.lamasatech.displaypulse.samples.cmsintegration.data.api.dto.ErrorBody
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.CmsRepository
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ApiResult
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.AudienceSnapshot
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeviceHealth
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayReceipt
 import java.io.IOException
@@ -26,8 +27,8 @@ class CmsRepositoryImpl @Inject constructor(
     private val gson: Gson,
 ) : CmsRepository {
 
-    override suspend fun health(): ApiResult<String> =
-        execute({ api.health() }) { _, body -> body.toString() }
+    override suspend fun health(): ApiResult<DeviceHealth> =
+        execute({ api.health() }) { _, body -> body.toDeviceHealth() }
 
     override suspend fun audienceCurrent(): ApiResult<AudienceSnapshot> =
         execute({ api.audienceCurrent() }) { _, dto -> dto.toDomain() }

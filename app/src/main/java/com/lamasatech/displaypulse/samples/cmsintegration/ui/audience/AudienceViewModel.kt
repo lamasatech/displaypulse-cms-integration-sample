@@ -5,17 +5,22 @@ import androidx.lifecycle.viewModelScope
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.ConnectionSettings
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.ConnectionSettingsStore
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.PlaybackStore
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.AppSigningIdentity
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.AudienceBroadcastFeed
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.BroadcastFreshness
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.CampaignFactory
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.Clock
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.CmsRepository
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.DeliveryOutcomeClassifier
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.PlayEventSender
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.PlaybackReducer
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.Advertiser
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ApiResult
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ContentDuration
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeliveryOutcome
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventType
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventsApi
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayReceipt
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -33,8 +38,13 @@ import kotlinx.coroutines.sync.withLock
 /**
  * Holds the state of the main screen and runs its actions.
  *
- * It owns three jobs: saving the connection and checking it, polling live measurements while the
+ * It owns three jobs: saving the connection and checking it, showing live measurements while the
  * screen is visible, and driving the campaign / play flow with safe retries.
+ *
+ * Live measurements come from the audience broadcast. While no readable broadcast has arrived
+ * for [BroadcastFreshness.MAX_AGE_MS] (the app is not registered for it, or it stopped), they are
+ * polled from `GET /audience/current` instead, and polling stops again as soon as the broadcast
+ * is back.
  *
  * The playback state is saved to disk before each event is sent and after each reply. When the
  * app starts with an event still pending from an earlier run, it resends that event with the same
@@ -48,6 +58,8 @@ import kotlinx.coroutines.sync.withLock
  * @property outcomes decides what to do with a delivery result.
  * @property reducer playback state transitions.
  * @property clock timestamps for log entries.
+ * @property broadcastFeed live measurements pushed by broadcast.
+ * @property signingIdentity this app's package and certificate, shown so they can be registered.
  */
 @HiltViewModel
 class AudienceViewModel @Inject constructor(
@@ -59,6 +71,8 @@ class AudienceViewModel @Inject constructor(
     private val outcomes: DeliveryOutcomeClassifier,
     private val reducer: PlaybackReducer,
     private val clock: Clock,
+    private val broadcastFeed: AudienceBroadcastFeed,
+    private val signingIdentity: AppSigningIdentity,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -71,10 +85,12 @@ class AudienceViewModel @Inject constructor(
     private val saveLock = Mutex()
     private var healthJob: Job? = null
     private var pollJob: Job? = null
+    private var broadcastWatchJob: Job? = null
     private var screenVisible = false
 
     init {
         restorePlayback()
+        observeBroadcasts()
     }
 
     /**
@@ -130,7 +146,7 @@ class AudienceViewModel @Inject constructor(
             when (val result = repository.health()) {
                 is ApiResult.Success -> {
                     _state.update { it.copy(connection = ConnectionStatus.Online(result.value)) }
-                    log("GET /health → 200 ${result.value}")
+                    log("GET /health → 200 ${result.value.detail}")
                 }
                 is ApiResult.HttpError -> markOffline("HTTP ${result.code}")
                 is ApiResult.NetworkError -> markOffline(result.message)
@@ -140,24 +156,39 @@ class AudienceViewModel @Inject constructor(
 
     /**
      * Creates and saves a new campaign with a fresh UUID. Refused, with a log message, while a play
-     * is open or an event is waiting to be delivered.
+     * is open or an event is waiting to be delivered, or when [advertiserText] is not blank and the
+     * device would refuse it.
      *
      * @param name display name; a blank name gets a default.
+     * @param advertiserText the brand behind the campaign as typed by the user; blank means none.
      */
-    fun createCampaign(name: String) {
+    fun createCampaign(name: String, advertiserText: String = "") {
         if (!_state.value.playback.canChangeCampaign) {
             log("Finish the current play before creating a new campaign", isError = true)
             return
         }
-        val campaign = campaignFactory.create(name)
+        val advertiser = if (advertiserText.isBlank()) null else {
+            Advertiser.normalize(advertiserText) ?: run {
+                log("Advertiser must be at most ${Advertiser.MAX_LENGTH} characters, with no control " +
+                    "characters, and not \"${Advertiser.RESERVED}\"", isError = true)
+                return
+            }
+        }
+        val campaign = campaignFactory.create(name, advertiser)
         _state.update { it.copy(playback = reducer.withCampaign(it.playback, campaign)) }
-        log("Campaign \"${campaign.name}\" created: ${campaign.id}")
+        val named = campaign.advertiser?.let { " for advertiser \"$it\"" }.orEmpty()
+        log("Campaign \"${campaign.name}\"$named created: ${campaign.id}")
         viewModelScope.launch { savePlayback() }
     }
 
     /**
      * Starts a new play for the current campaign and delivers its `started` event. Does nothing if
      * a play cannot start now.
+     *
+     * When the campaign names an advertiser, the device is asked first whether it accepts one
+     * (play events API [PlayEventsApi.ADVERTISER_VERSION]). It is sent only if so; otherwise the
+     * play is reported without it and the log says why. If the device cannot be asked, nothing is
+     * sent, so a play is never reported without an advertiser by mistake.
      *
      * Nothing is sent, and the reason is logged, when [durationSecondsText] is not blank and is not
      * a whole number of seconds the device accepts.
@@ -174,8 +205,49 @@ class AudienceViewModel @Inject constructor(
                 return
             }
         }
-        _state.update { it.copy(playback = reducer.requestStart(it.playback, expectedDurationMs)) }
-        deliverPending()
+        if (_state.value.playback.campaign?.advertiser == null) {
+            _state.update { it.copy(playback = reducer.requestStart(it.playback, expectedDurationMs)) }
+            deliverPending()
+        } else {
+            startNamedPlay(expectedDurationMs)
+        }
+    }
+
+    /**
+     * Checks that the device accepts an advertiser, then records the `started` event with or
+     * without it. Runs under [deliveryLock] so a second tap cannot start a second play.
+     */
+    private fun startNamedPlay(expectedDurationMs: Long?) {
+        viewModelScope.launch {
+            val started = deliveryLock.withLock {
+                if (!_state.value.playback.canStart) return@withLock false
+                _state.update { it.copy(busy = true) }
+                val reply = repository.health()
+                _state.update { it.copy(busy = false) }
+                val health = when (reply) {
+                    is ApiResult.Success -> reply.value
+                    is ApiResult.HttpError -> return@withLock refuseNamedStart("HTTP ${reply.code}")
+                    is ApiResult.NetworkError -> return@withLock refuseNamedStart(reply.message)
+                }
+                _state.update { it.copy(connection = ConnectionStatus.Online(health)) }
+                val accepts = health.acceptsAdvertiser
+                if (!accepts) {
+                    log("This device accepts play events API ${health.playEventVersions.sorted().joinToString()} " +
+                        "only, so the play is reported without its advertiser. Update the DisplayPulse app " +
+                        "to API ${PlayEventsApi.ADVERTISER_VERSION} to report it", isError = true)
+                }
+                _state.update { it.copy(playback = reducer.requestStart(it.playback, expectedDurationMs, accepts)) }
+                true
+            }
+            if (started) deliverPending()
+        }
+    }
+
+    /** Logs why a play that names an advertiser was not started. @return `false`. */
+    private fun refuseNamedStart(reason: String): Boolean {
+        markOffline(reason)
+        log("Play not started: could not ask the device whether it accepts an advertiser. Tap Start again", isError = true)
+        return false
     }
 
     /**
@@ -214,13 +286,13 @@ class AudienceViewModel @Inject constructor(
     }
 
     /**
-     * Switches live polling on or off. Polling only runs while the screen is also visible.
+     * Switches live updates on or off. They only run while the screen is also visible.
      *
-     * @param enabled `true` to poll.
+     * @param enabled `true` for live updates.
      */
     fun setPolling(enabled: Boolean) {
         _state.update { it.copy(polling = enabled) }
-        refreshPolling()
+        refreshLiveUpdates()
     }
 
     /**
@@ -230,7 +302,7 @@ class AudienceViewModel @Inject constructor(
      */
     fun onScreenVisible(visible: Boolean) {
         screenVisible = visible
-        refreshPolling()
+        refreshLiveUpdates()
     }
 
     private fun deliverPending() {
@@ -287,7 +359,9 @@ class AudienceViewModel @Inject constructor(
 
     private fun describe(event: PlayEvent, result: ApiResult<PlayReceipt>): String {
         val duration = event.expectedDurationMs?.let { " expected_duration_ms=$it" }.orEmpty()
-        val head = "POST /v1/play-events ${event.type.wireName} play=${event.playId.take(8)}$duration"
+        val advertiser = event.advertiser?.let { " advertiser=\"$it\"" }.orEmpty()
+        val head = "POST /v1/play-events v${PlayEventsApi.versionFor(event)} ${event.type.wireName} " +
+            "play=${event.playId.take(8)}$duration$advertiser"
         return when (result) {
             is ApiResult.Success ->
                 "$head → ${if (result.value.duplicate) "200 duplicate" else "202 accepted"} receipt=${result.value.receiptId}"
@@ -303,10 +377,57 @@ class AudienceViewModel @Inject constructor(
         }
     }
 
+    private val liveUpdatesActive: Boolean get() = _state.value.polling && screenVisible
+
+    /** Starts or stops the broadcast watch and the HTTP fallback to match the switch and the screen. */
+    private fun refreshLiveUpdates() {
+        if (!liveUpdatesActive) {
+            broadcastWatchJob?.cancel()
+            broadcastWatchJob = null
+        } else if (broadcastWatchJob?.isActive != true) {
+            // A broadcast that stops sends nothing, so only a timer can notice it.
+            broadcastWatchJob = viewModelScope.launch {
+                while (isActive) {
+                    evaluateBroadcast()
+                    delay(BROADCAST_CHECK_INTERVAL_MS)
+                }
+            }
+        }
+        refreshPolling()
+    }
+
+    /**
+     * Shows the latest broadcast while it is arriving, and switches the HTTP fallback on or off
+     * when the broadcast stops or comes back.
+     */
+    private fun evaluateBroadcast() {
+        if (!liveUpdatesActive) return
+        val before = _state.value
+        val fresh = BroadcastFreshness.isFresh(before.broadcast, clock.elapsedMs())
+        _state.update {
+            if (fresh) {
+                it.copy(audience = it.broadcast.latest, liveSource = LiveSource.BROADCAST, audienceError = null, broadcastFresh = true)
+            } else {
+                it.copy(broadcastFresh = false)
+            }
+        }
+        if (fresh == before.broadcastFresh) return
+        if (fresh) {
+            log("Broadcast received: live figures come from it; HTTP polling paused")
+        } else {
+            log("No broadcast for ${BroadcastFreshness.MAX_AGE_MS / 1_000} s: reading GET /audience/current until it is back")
+        }
+        refreshPolling()
+    }
+
+    /** Polls over HTTP while live updates run and the broadcast is not arriving. */
     private fun refreshPolling() {
+        val shouldPoll = liveUpdatesActive && !_state.value.broadcastFresh
+        // Keep a running loop: restarting it would reset its rate-limit wait.
+        if (shouldPoll && pollJob?.isActive == true) return
         pollJob?.cancel()
         pollJob = null
-        if (!_state.value.polling || !screenVisible) return
+        if (!shouldPoll) return
         pollJob = viewModelScope.launch {
             while (isActive) {
                 val nextPollMs = pollOnce() ?: break
@@ -315,10 +436,26 @@ class AudienceViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Mirrors the broadcast feed into the screen state for the life of the view model. The feed
+     * keeps receiving while the screen is hidden, so the figures are current when it returns.
+     */
+    private fun observeBroadcasts() {
+        _state.update {
+            it.copy(recipient = BroadcastRecipient(signingIdentity.packageName, signingIdentity.signingCertificateSha256()))
+        }
+        viewModelScope.launch {
+            broadcastFeed.state.collect { feed ->
+                _state.update { it.copy(broadcast = feed) }
+                evaluateBroadcast()
+            }
+        }
+    }
+
     /** @return how long to wait before the next poll, or `null` when polling must stop. */
     private suspend fun pollOnce(): Long? = when (val result = repository.audienceCurrent()) {
         is ApiResult.Success -> {
-            _state.update { it.copy(audience = result.value, audienceError = null) }
+            _state.update { it.copy(audience = result.value, liveSource = LiveSource.HTTP, audienceError = null) }
             POLL_INTERVAL_MS
         }
         is ApiResult.HttpError -> when (result.code) {
@@ -342,6 +479,8 @@ class AudienceViewModel @Inject constructor(
 
     private fun stopPolling(reason: String) {
         _state.update { it.copy(polling = false, audienceError = reason) }
+        broadcastWatchJob?.cancel()
+        broadcastWatchJob = null
         log("Live updates stopped: GET /audience/current → $reason. Fix it, then switch Live updates on again", isError = true)
     }
 
@@ -363,6 +502,7 @@ class AudienceViewModel @Inject constructor(
 
     private companion object {
         const val POLL_INTERVAL_MS = 1_200L
+        const val BROADCAST_CHECK_INTERVAL_MS = 1_000L
         const val MAX_POLL_WAIT_MS = 30_000L
         const val HTTP_TOO_MANY_REQUESTS = 429
         val STOP_POLLING_CODES = setOf(401, 403)

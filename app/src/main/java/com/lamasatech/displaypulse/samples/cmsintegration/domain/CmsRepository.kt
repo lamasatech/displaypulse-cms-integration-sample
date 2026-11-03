@@ -2,6 +2,7 @@ package com.lamasatech.displaypulse.samples.cmsintegration.domain
 
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ApiResult
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.AudienceSnapshot
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeviceHealth
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayReceipt
 
@@ -13,11 +14,11 @@ import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayRecei
 interface CmsRepository {
 
     /**
-     * Checks that the device is reachable.
+     * Checks that the device is reachable and reads which play events API versions it accepts.
      *
-     * @return a short text describing the device's reply.
+     * @return the device's reply.
      */
-    suspend fun health(): ApiResult<String>
+    suspend fun health(): ApiResult<DeviceHealth>
 
     /**
      * Reads the device's current measurements.

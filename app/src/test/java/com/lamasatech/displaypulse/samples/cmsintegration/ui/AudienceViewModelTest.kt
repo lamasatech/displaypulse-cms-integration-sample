@@ -3,7 +3,10 @@ package com.lamasatech.displaypulse.samples.cmsintegration.ui
 import com.lamasatech.displaypulse.samples.cmsintegration.data.store.ConnectionSettings
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.CampaignFactory
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.DeliveryOutcomeClassifier
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.BroadcastFreshness
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.FakeAudienceBroadcastFeed
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.FakeCmsRepository
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.FixedSigningIdentity
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.FixedClock
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.InMemoryPlaybackStore
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.InMemorySettingsStore
@@ -12,12 +15,17 @@ import com.lamasatech.displaypulse.samples.cmsintegration.domain.PlayEventSender
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.PlaybackReducer
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.SequentialIds
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ApiResult
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.AudienceSnapshot
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.BroadcastFeedState
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.Campaign
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeviceHealth
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventType
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayReceipt
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlaybackState
 import com.lamasatech.displaypulse.samples.cmsintegration.ui.audience.AudienceViewModel
+import com.lamasatech.displaypulse.samples.cmsintegration.ui.audience.BroadcastRecipient
+import com.lamasatech.displaypulse.samples.cmsintegration.ui.audience.LiveSource
 import com.lamasatech.displaypulse.samples.cmsintegration.ui.audience.ConnectionStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
@@ -34,7 +42,7 @@ import org.junit.Test
 
 /**
  * Tests the main screen's view model: saving the connection, health checks, play delivery, resuming
- * after a restart and polling.
+ * after a restart, polling, and live figures from the broadcast with the HTTP fallback.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class AudienceViewModelTest {
@@ -46,11 +54,12 @@ class AudienceViewModelTest {
     private val ids = SequentialIds()
     private val repository = FakeCmsRepository()
     private val settings = InMemorySettingsStore(ConnectionSettings("127.0.0.1", 8400, "good-token"))
+    private val broadcasts = FakeAudienceBroadcastFeed()
     private val playbacks = InMemoryPlaybackStore(PlaybackState(campaign = Campaign("camp-1", "Demo", "content-1")))
 
     private val accepted = ApiResult.Success(PlayReceipt(receiptId = 1, duplicate = false))
     private val storageUnavailable = ApiResult.HttpError(503, "storage_unavailable", null, null)
-    private val reachable = 10L to ApiResult.Success("""{"status":"ok"}""")
+    private val reachable = 10L to ApiResult.Success(DeviceHealth("""{"status":"ok"}""", setOf("1.1")))
 
     private fun viewModel() = AudienceViewModel(
         settingsStore = settings,
@@ -61,6 +70,8 @@ class AudienceViewModelTest {
         outcomes = DeliveryOutcomeClassifier(),
         reducer = PlaybackReducer(PlayEventFactory(clock, ids)),
         clock = clock,
+        broadcastFeed = broadcasts,
+        signingIdentity = FixedSigningIdentity(),
     )
 
     private fun AudienceViewModel.lastLog() = state.value.log.first()
@@ -385,6 +396,122 @@ class AudienceViewModelTest {
         assertEquals(vm.state.value.playback.campaign, playbacks.state?.campaign)
     }
 
+    private fun health(vararg versions: String) = 0L to ApiResult.Success(DeviceHealth("{}", versions.toSet()))
+
+    /** A view model whose campaign names [advertiser], with no play open. */
+    private fun namedCampaignViewModel(advertiser: String = "Acme Foods"): AudienceViewModel {
+        val vm = viewModel()
+        vm.createCampaign("Spring", advertiser)
+        return vm
+    }
+
+    @Test
+    fun `a new campaign keeps its trimmed advertiser`() = runTest(main.dispatcher) {
+        val vm = namedCampaignViewModel("  Acme Foods ")
+        runCurrent()
+
+        assertEquals("Acme Foods", playbacks.state?.campaign?.advertiser)
+    }
+
+    @Test
+    fun `an advertiser the device would refuse creates no campaign and says why`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        val before = vm.state.value.playback.campaign
+        for (bad in listOf("_unknown", "a".repeat(121), "Acme\nFoods")) {
+            vm.createCampaign("Spring", bad)
+            assertEquals(bad, before, vm.state.value.playback.campaign)
+            assertTrue(bad, vm.lastLog().isError && vm.lastLog().message.startsWith("Advertiser must be"))
+        }
+        // Control: a blank advertiser means none.
+        vm.createCampaign("Spring", "   ")
+        assertNull(vm.state.value.playback.campaign?.advertiser)
+        assertEquals("Spring", vm.state.value.playback.campaign?.name)
+    }
+
+    @Test
+    fun `the advertiser is sent as API 1_2 when the device lists it`() = runTest(main.dispatcher) {
+        val vm = namedCampaignViewModel()
+        repository.healthReplies += health("1.1", "1.2")
+        repository.playReplies += accepted
+
+        vm.startPlay("")
+        runCurrent()
+
+        assertEquals("Acme Foods", repository.sentEvents.single().advertiser)
+        assertTrue(vm.state.value.connection is ConnectionStatus.Online)
+        assertTrue(vm.lastLog().message.contains("v1.2 started"))
+    }
+
+    @Test
+    fun `a device without API 1_2 gets the play without the advertiser and the log says why`() = runTest(main.dispatcher) {
+        val vm = namedCampaignViewModel()
+        repository.healthReplies += health("1.1")
+        repository.playReplies += accepted
+
+        vm.startPlay("")
+        runCurrent()
+
+        assertNull(repository.sentEvents.single().advertiser)
+        assertTrue(vm.state.value.log.any { it.isError && it.message.contains("reported without its advertiser") })
+        assertTrue(vm.lastLog().message.contains("v1.1 started"))
+    }
+
+    @Test
+    fun `when the device cannot be asked nothing is sent and the play can start again`() = runTest(main.dispatcher) {
+        val vm = namedCampaignViewModel()
+        repository.healthReplies += 0L to ApiResult.NetworkError("timeout")
+
+        vm.startPlay("")
+        runCurrent()
+
+        assertTrue(repository.sentEvents.isEmpty())
+        assertTrue(vm.state.value.playback.canStart)
+        assertFalse(vm.state.value.busy)
+        assertTrue(vm.lastLog().isError && vm.lastLog().message.startsWith("Play not started"))
+    }
+
+    @Test
+    fun `a second tap while the device is asked starts one play only`() = runTest(main.dispatcher) {
+        val vm = namedCampaignViewModel()
+        repository.healthReplies += 100L to ApiResult.Success(DeviceHealth("{}", setOf("1.1", "1.2")))
+        repository.playReplies += accepted
+
+        vm.startPlay("")
+        vm.startPlay("")
+        advanceTimeBy(1_000)
+
+        assertEquals(1, repository.sentEvents.size)
+    }
+
+    @Test
+    fun `a campaign without an advertiser starts without asking the device (control)`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        // No health reply is queued, so asking the device would fail the test.
+        repository.playReplies += accepted
+
+        vm.startPlay("")
+        runCurrent()
+
+        assertNull(repository.sentEvents.single().advertiser)
+    }
+
+    @Test
+    fun `after a restart a pending named start is resent unchanged without asking again`() = runTest(main.dispatcher) {
+        val first = namedCampaignViewModel()
+        repository.healthReplies += health("1.1", "1.2")
+        repository.playReplies += storageUnavailable
+        first.startPlay("")
+        runCurrent()
+        val pending = requireNotNull(playbacks.state?.pending)
+
+        repository.playReplies += accepted
+        viewModel()
+        runCurrent()
+
+        assertEquals(pending, repository.sentEvents.last())
+        assertEquals("Acme Foods", repository.sentEvents.last().advertiser)
+    }
+
     @Test
     fun `polling stops on 403 instead of repeating it`() = runTest(main.dispatcher) {
         val vm = viewModel()
@@ -426,6 +553,139 @@ class AudienceViewModelTest {
             assertEquals(2, repository.audienceCalls)
             assertNull(vm.state.value.audienceError) // a pause request is not an error
         }
+    }
+
+    private fun measured(peopleNow: Int) = AudienceSnapshot(
+        measurementStatus = "measured", observedAt = "2026-11-03T14:13:08Z", peopleNow = peopleNow,
+        lookingNow = null, gender = emptyMap(), age = emptyMap(), viewersTotal = null, avgDwellMs = null,
+        reachTotal = null, otsTotal = null, frequency = null, verifiedReachTotal = null,
+        staffExcludedTotal = null, activeCampaignId = null,
+    )
+
+    /** Simulates one readable broadcast arriving now. */
+    private fun broadcast(peopleNow: Int) {
+        val received = broadcasts.state.value.received + 1
+        broadcasts.state.value = BroadcastFeedState(measured(peopleNow), clock.elapsedMs, received)
+    }
+
+    @Test
+    fun `live figures come from the broadcast and HTTP is not polled while it arrives`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        repository.audienceReply = ApiResult.Success(measured(1))
+        broadcast(7)
+
+        whilePolling(vm) {
+            repeat(5) {
+                clock.elapsedMs += 1_000
+                broadcast(7 + it)
+                advanceTimeBy(1_000)
+            }
+
+            assertEquals(0, repository.audienceCalls)
+            assertEquals(11, vm.state.value.audience?.peopleNow)
+            assertEquals(LiveSource.BROADCAST, vm.state.value.liveSource)
+            assertTrue(vm.state.value.broadcastFresh)
+        }
+    }
+
+    @Test
+    fun `without any broadcast live updates poll HTTP (control)`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        repository.audienceReply = ApiResult.Success(measured(4))
+
+        whilePolling(vm) {
+            advanceTimeBy(2_500)
+
+            assertEquals(3, repository.audienceCalls)
+            assertEquals(4, vm.state.value.audience?.peopleNow)
+            assertEquals(LiveSource.HTTP, vm.state.value.liveSource)
+        }
+    }
+
+    @Test
+    fun `a broadcast that stops falls back to HTTP, and polling stops when it is back`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        repository.audienceReply = ApiResult.Success(measured(2))
+        broadcast(9)
+
+        whilePolling(vm) {
+            assertEquals(0, repository.audienceCalls)
+
+            // No broadcast for longer than the maximum age; the next once-a-second check notices.
+            clock.elapsedMs += BroadcastFreshness.MAX_AGE_MS + 1
+            advanceTimeBy(1_000)
+            runCurrent()
+
+            assertEquals(1, repository.audienceCalls)
+            assertFalse(vm.state.value.broadcastFresh)
+            assertEquals(LiveSource.HTTP, vm.state.value.liveSource)
+            assertTrue(vm.lastLog().message.startsWith("No broadcast for 3 s"))
+
+            broadcast(10)
+            runCurrent()
+            val callsWhenBack = repository.audienceCalls
+            advanceTimeBy(5_000)
+
+            assertEquals(callsWhenBack, repository.audienceCalls)
+            assertEquals(10, vm.state.value.audience?.peopleNow)
+            assertEquals(LiveSource.BROADCAST, vm.state.value.liveSource)
+            assertTrue(vm.lastLog().message.startsWith("Broadcast received"))
+        }
+    }
+
+    @Test
+    fun `unreadable broadcasts do not keep the feed fresh`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        repository.audienceReply = ApiResult.Success(measured(2))
+        broadcast(9)
+
+        whilePolling(vm) {
+            clock.elapsedMs += BroadcastFreshness.MAX_AGE_MS + 1
+            broadcasts.state.value = broadcasts.state.value.copy(rejected = 3)
+            advanceTimeBy(1_000)
+
+            assertFalse(vm.state.value.broadcastFresh)
+            assertTrue(repository.audienceCalls >= 1)
+        }
+    }
+
+    @Test
+    fun `with Live updates off neither the broadcast nor HTTP changes the figures`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        repository.audienceReply = ApiResult.Success(measured(2))
+        vm.onScreenVisible(true)
+        runCurrent()
+
+        broadcast(9)
+        advanceTimeBy(5_000)
+
+        assertNull(vm.state.value.audience)
+        assertEquals(0, repository.audienceCalls)
+        assertEquals(1, vm.state.value.broadcast.received) // still received, ready for when it is turned on
+        vm.onScreenVisible(false)
+    }
+
+    @Test
+    fun `a hidden screen stops both the broadcast watch and HTTP polling`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        repository.audienceReply = ApiResult.Success(measured(2))
+        vm.setPolling(true)
+        vm.onScreenVisible(true)
+        runCurrent()
+        val calls = repository.audienceCalls
+
+        vm.onScreenVisible(false)
+        advanceTimeBy(10_000)
+
+        assertEquals(calls, repository.audienceCalls)
+        assertTrue(vm.state.value.polling)
+    }
+
+    @Test
+    fun `the recipient to register is this app's package and certificate`() {
+        val vm = viewModel()
+
+        assertEquals(BroadcastRecipient("com.example.player", "ab".repeat(32)), vm.state.value.recipient)
     }
 
     /**

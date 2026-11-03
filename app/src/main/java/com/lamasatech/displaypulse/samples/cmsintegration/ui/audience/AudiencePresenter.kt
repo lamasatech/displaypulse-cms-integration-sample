@@ -1,6 +1,7 @@
 package com.lamasatech.displaypulse.samples.cmsintegration.ui.audience
 
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.AudienceSnapshot
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.BroadcastFeedState
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.Campaign
 import java.util.Locale
 
@@ -19,14 +20,36 @@ object AudiencePresenter {
      * @param campaign the app's current campaign, used to tell whether the measurements belong to it.
      * @param error why the last poll failed, or `null` while polling works. When set, [snapshot] is
      * the last data received and is labelled as such.
+     * @param source where [snapshot] came from, or `null` if unknown.
+     * @param feed what the broadcast has delivered, shown next to the source.
      * @return the text to display.
      */
-    fun present(snapshot: AudienceSnapshot?, campaign: Campaign?, error: String? = null): AudienceView = AudienceView(
-        status = if (error == null) status(snapshot) else errorStatus(error, snapshot),
-        kpis = kpis(snapshot),
-        demographics = demographics(snapshot),
-        campaignLink = if (error != null && snapshot != null) STALE_CAMPAIGN_LINK else campaignLink(snapshot, campaign),
-    )
+    fun present(
+        snapshot: AudienceSnapshot?,
+        campaign: Campaign?,
+        error: String? = null,
+        source: LiveSource? = null,
+        feed: BroadcastFeedState = BroadcastFeedState(),
+    ): AudienceView {
+        val base = if (error == null) status(snapshot) else errorStatus(error, snapshot)
+        return AudienceView(
+            status = source?.let { "$base · ${delivery(it, feed)}" } ?: base,
+            kpis = kpis(snapshot),
+            demographics = demographics(snapshot),
+            campaignLink = if (error != null && snapshot != null) STALE_CAMPAIGN_LINK else campaignLink(snapshot, campaign),
+        )
+    }
+
+    /** Says which source the figures came from; the broadcast count stops moving if it stops. */
+    private fun delivery(source: LiveSource, feed: BroadcastFeedState): String = buildString {
+        append(
+            when (source) {
+                LiveSource.BROADCAST -> "via broadcast #${feed.received}"
+                LiveSource.HTTP -> if (feed.received == 0) "via HTTP (no broadcast received)" else "via HTTP (broadcast stopped)"
+            }
+        )
+        if (feed.rejected > 0) append(" · ${feed.rejected} unreadable broadcasts")
+    }
 
     private const val STALE_CAMPAIGN_LINK = "Campaign link: unknown while live data is failing"
 
