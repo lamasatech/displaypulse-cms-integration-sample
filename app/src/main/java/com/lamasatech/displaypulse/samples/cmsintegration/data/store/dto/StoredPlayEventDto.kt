@@ -16,7 +16,7 @@ import com.google.gson.annotations.SerializedName
  * @property expectedDurationMs expected content duration; set for `started` events that declare
  * one. Records written by 1.0.0 do not have it and read back as no duration.
  * @property advertiser advertiser named on a `started` event. Records written before 1.3.0 do not
- * have it and read back as none, so their event is resent exactly as first sent.
+ * have it and read back as none.
  */
 data class StoredPlayEventDto(
     @SerializedName("event_id") val eventId: String?,

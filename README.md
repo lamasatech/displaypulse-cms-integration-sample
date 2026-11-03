@@ -30,8 +30,8 @@ leaves out.
 The sample runs **on the same device as the DisplayPulse app** and talks to it at `127.0.0.1`.
 Players on a separate device on the local network are not supported yet; support for them is planned.
 
-Requires the DisplayPulse app with play events API 1.1. Naming the advertiser of a campaign also
-needs play events API 1.2; with an older DisplayPulse app, plays are reported without it.
+Requires the DisplayPulse app with play events API 1.2. **Save and check** warns in the log when
+the DisplayPulse app does not accept it.
 
 | Requirement | Why |
 |-------------|-----|
@@ -97,11 +97,8 @@ the figures are current again as soon as it returns.
    30 seconds after the declared duration, or after 5 minutes when no duration was sent. So
    declare the duration for content longer than 5 minutes, or its audience after that point
    is not counted and **Complete** is answered `409`.
-   When the campaign has an advertiser, **Start play** first reads `GET /health`. If the
-   DisplayPulse app lists play events API `1.2` in `play_events_schema_versions`, the start is
-   sent as schema `1.2` with `advertiser`. Otherwise it is sent as `1.1` without it, and the log
-   says so. If the DisplayPulse app cannot be reached, nothing is sent; tap **Start play** again.
-   A campaign without an advertiser always uses `1.1`.
+   Every event is sent as schema `1.2`. When the campaign has an advertiser, the start also
+   carries `advertiser`; otherwise the field is left out.
 3. End the play with **Complete**, **Fail** or **Interrupt**. These are only available
    while a play is active. Fail sends the reason `player_error` and Interrupt sends
    `user_skipped`, as examples of what a player would report.
@@ -166,8 +163,7 @@ says so in the log. If a write fails, the log says so too, and the event is stil
 | `403 connection_identity_unavailable` | The CMS connection was created or changed a moment ago and is still reaching the device | Wait a few minutes, then tap **Retry pending event**. |
 | `429 too_many_requests` | More than about one feed read per second on this token | Slow down, or give each app its own token. The sample waits and retries play events automatically. |
 | `409 terminal_conflict` on Complete | The DisplayPulse app already ended this play (for example after its open-play timeout) | Nothing; the sample closes the play. Start a new play. |
-| *… reported without its advertiser* | The DisplayPulse app does not list play events API `1.2` on `/health` | Update the DisplayPulse app. The play itself is reported normally. |
-| *Play not started: could not ask the device whether it accepts an advertiser* | `/health` failed when a play for a campaign with an advertiser was started | Check the connection, then tap **Start play** again. |
+| *This DisplayPulse app does not accept play events API 1.2 … Update the DisplayPulse app* | `/health` does not list `1.2` in `play_events_schema_versions` | Update the DisplayPulse app. Until then it refuses every play event with `400`. |
 | *Advertiser must be at most 120 characters …* | The advertiser is too long, contains a control character, or is `_unknown` | Correct it; leave it empty for none. |
 | `400 clock_invalid` | The device clock is wrong, or an end time is before the start | Turn on automatic (network) date and time on the device. |
 | Play accepted (`202`) but no audience in reports | The start arrived more than 30 seconds after its `occurred_at` time, for example because it waited while the DisplayPulse app was unreachable | Send the start as soon as content appears, and keep the device on network time. |
@@ -208,7 +204,7 @@ To try the sample without building it, install the signed APK from the latest
 [release](https://github.com/lamasatech/displaypulse-cms-integration-sample/releases/latest):
 
 ```bash
-adb install displaypulse-cms-integration-sample-1.3.0.apk
+adb install displaypulse-cms-integration-sample-1.4.0.apk
 ```
 
 To build from source you need JDK 21 and the Android SDK with the API 36 platform. The sample runs

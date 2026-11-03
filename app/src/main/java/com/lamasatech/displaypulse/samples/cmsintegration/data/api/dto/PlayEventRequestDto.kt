@@ -8,8 +8,8 @@ import com.google.gson.annotations.SerializedName
  * Null optionals are left out of the JSON entirely, because the receiver rejects fields it does
  * not expect rather than ignoring them.
  *
- * @property schemaVersion version of this body format, from
- * [com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventsApi.versionFor].
+ * @property schemaVersion version of this body format,
+ * [com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventsApi.VERSION].
  * @property eventId unique id of the event; stays the same on retries.
  * @property eventType lifecycle stage: `started`, `completed`, `failed` or `interrupted`.
  * @property playId id of the play the event belongs to.
@@ -19,7 +19,7 @@ import com.google.gson.annotations.SerializedName
  * @property reason explanation; sent with `failed` and `interrupted` events only.
  * @property expectedDurationMs expected content duration in milliseconds; sent with `started`
  * events only, and only when known.
- * @property advertiser the brand behind the campaign; sent with `started` events in version 1.2 only.
+ * @property advertiser the brand behind the campaign; sent with `started` events only, and only when the campaign has one.
  */
 data class PlayEventRequestDto(
     @SerializedName("schema_version") val schemaVersion: String,

@@ -19,8 +19,7 @@ package com.lamasatech.displaypulse.samples.cmsintegration.domain.model
  * @property expectedDurationMs how long the content is expected to play; optional for
  * [PlayEventType.STARTED], forbidden otherwise, and within the [ContentDuration] limits.
  * @property advertiser the brand behind the campaign; optional for [PlayEventType.STARTED], forbidden
- * otherwise, and in [Advertiser.normalize] form. Setting it sends the event as
- * [PlayEventsApi.ADVERTISER_VERSION].
+ * otherwise, and in [Advertiser.normalize] form.
  * @throws IllegalArgumentException if a field required for [type] is missing or one that is forbidden is set.
  */
 data class PlayEvent(

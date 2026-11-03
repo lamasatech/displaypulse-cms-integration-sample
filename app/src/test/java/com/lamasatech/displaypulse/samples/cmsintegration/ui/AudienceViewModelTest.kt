@@ -59,7 +59,7 @@ class AudienceViewModelTest {
 
     private val accepted = ApiResult.Success(PlayReceipt(receiptId = 1, duplicate = false))
     private val storageUnavailable = ApiResult.HttpError(503, "storage_unavailable", null, null)
-    private val reachable = 10L to ApiResult.Success(DeviceHealth("""{"status":"ok"}""", setOf("1.1")))
+    private val reachable = 10L to ApiResult.Success(DeviceHealth("""{"status":"ok"}""", setOf("1.2")))
 
     private fun viewModel() = AudienceViewModel(
         settingsStore = settings,
@@ -429,76 +429,60 @@ class AudienceViewModelTest {
     }
 
     @Test
-    fun `the advertiser is sent as API 1_2 when the device lists it`() = runTest(main.dispatcher) {
+    fun `a named start is sent as API 1_2 with its advertiser without asking the device`() = runTest(main.dispatcher) {
         val vm = namedCampaignViewModel()
-        repository.healthReplies += health("1.1", "1.2")
-        repository.playReplies += accepted
-
-        vm.startPlay("")
-        runCurrent()
-
-        assertEquals("Acme Foods", repository.sentEvents.single().advertiser)
-        assertTrue(vm.state.value.connection is ConnectionStatus.Online)
-        assertTrue(vm.lastLog().message.contains("v1.2 started"))
-    }
-
-    @Test
-    fun `a device without API 1_2 gets the play without the advertiser and the log says why`() = runTest(main.dispatcher) {
-        val vm = namedCampaignViewModel()
-        repository.healthReplies += health("1.1")
-        repository.playReplies += accepted
-
-        vm.startPlay("")
-        runCurrent()
-
-        assertNull(repository.sentEvents.single().advertiser)
-        assertTrue(vm.state.value.log.any { it.isError && it.message.contains("reported without its advertiser") })
-        assertTrue(vm.lastLog().message.contains("v1.1 started"))
-    }
-
-    @Test
-    fun `when the device cannot be asked nothing is sent and the play can start again`() = runTest(main.dispatcher) {
-        val vm = namedCampaignViewModel()
-        repository.healthReplies += 0L to ApiResult.NetworkError("timeout")
-
-        vm.startPlay("")
-        runCurrent()
-
-        assertTrue(repository.sentEvents.isEmpty())
-        assertTrue(vm.state.value.playback.canStart)
-        assertFalse(vm.state.value.busy)
-        assertTrue(vm.lastLog().isError && vm.lastLog().message.startsWith("Play not started"))
-    }
-
-    @Test
-    fun `a second tap while the device is asked starts one play only`() = runTest(main.dispatcher) {
-        val vm = namedCampaignViewModel()
-        repository.healthReplies += 100L to ApiResult.Success(DeviceHealth("{}", setOf("1.1", "1.2")))
-        repository.playReplies += accepted
-
-        vm.startPlay("")
-        vm.startPlay("")
-        advanceTimeBy(1_000)
-
-        assertEquals(1, repository.sentEvents.size)
-    }
-
-    @Test
-    fun `a campaign without an advertiser starts without asking the device (control)`() = runTest(main.dispatcher) {
-        val vm = viewModel()
         // No health reply is queued, so asking the device would fail the test.
         repository.playReplies += accepted
 
         vm.startPlay("")
         runCurrent()
 
-        assertNull(repository.sentEvents.single().advertiser)
+        assertEquals("Acme Foods", repository.sentEvents.single().advertiser)
+        assertTrue(vm.lastLog().message.contains("v1.2 started"))
+        assertTrue(vm.lastLog().message.contains("advertiser=\"Acme Foods\""))
     }
 
     @Test
-    fun `after a restart a pending named start is resent unchanged without asking again`() = runTest(main.dispatcher) {
-        val first = namedCampaignViewModel()
+    fun `a start without an advertiser is also sent as API 1_2 (control)`() = runTest(main.dispatcher) {
+        val vm = viewModel()
+        repository.playReplies += accepted
+
+        vm.startPlay("")
+        runCurrent()
+
+        assertNull(repository.sentEvents.single().advertiser)
+        assertTrue(vm.lastLog().message.contains("v1.2 started"))
+    }
+
+    @Test
+    fun `the health check warns to update a DisplayPulse app without API 1_2`() = runTest(main.dispatcher) {
+        for (versions in listOf(emptyArray(), arrayOf("1.1"))) {
+            val vm = viewModel()
+            repository.healthReplies += health(*versions)
+
+            vm.checkHealth()
+            runCurrent()
+
+            assertTrue(vm.state.value.connection is ConnectionStatus.Online)
+            assertTrue(versions.joinToString(), vm.lastLog().isError && vm.lastLog().message.endsWith("Update the DisplayPulse app"))
+        }
+    }
+
+    @Test
+    fun `the health check does not warn when the DisplayPulse app lists API 1_2 (control)`() = runTest(main.dispatcher) {
+        val vm = viewModel()
         repository.healthReplies += health("1.1", "1.2")
+
+        vm.checkHealth()
+        runCurrent()
+
+        assertTrue(vm.state.value.log.none { it.isError })
+        assertTrue(vm.lastLog().message.startsWith("GET /health → 200"))
+    }
+
+    @Test
+    fun `after a restart a pending named start is resent unchanged`() = runTest(main.dispatcher) {
+        val first = namedCampaignViewModel()
         repository.playReplies += storageUnavailable
         first.startPlay("")
         runCurrent()

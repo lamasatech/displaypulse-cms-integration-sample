@@ -1,7 +1,7 @@
 package com.lamasatech.displaypulse.samples.cmsintegration.domain.model
 
 /**
- * The advertiser a `started` event may name (play events API [PlayEventsApi.ADVERTISER_VERSION]).
+ * The advertiser a `started` event may name.
  *
  * It names the brand behind a campaign, so DisplayPulse reports show it instead of `_unknown`.
  * These are the device's rules: it refuses a value that breaks them instead of shortening or

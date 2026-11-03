@@ -10,7 +10,7 @@ import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 
 /** Converts a domain [PlayEvent] into the request body sent over the wire. */
 fun PlayEvent.toRequestDto() = PlayEventRequestDto(
-    schemaVersion = PlayEventsApi.versionFor(this),
+    schemaVersion = PlayEventsApi.VERSION,
     eventId = eventId,
     eventType = type.wireName,
     playId = playId,
@@ -25,14 +25,14 @@ fun PlayEvent.toRequestDto() = PlayEventRequestDto(
 /**
  * Converts a `GET /health` reply into [DeviceHealth].
  *
- * A device that predates `play_events_schema_versions` accepts [PlayEventsApi.BASE_VERSION] only.
- * Entries that are not strings are ignored rather than guessed at.
+ * A device that predates `play_events_schema_versions` lists no versions. Entries that are not
+ * strings are ignored rather than guessed at.
  */
 fun JsonObject.toDeviceHealth(): DeviceHealth {
     val listed = get(PLAY_EVENT_VERSIONS)?.takeIf { it.isJsonArray }?.asJsonArray
     val versions = listed?.mapNotNull { element ->
         element.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-    }?.toSet() ?: setOf(PlayEventsApi.BASE_VERSION)
+    }?.toSet().orEmpty()
     return DeviceHealth(detail = toString(), playEventVersions = versions)
 }
 

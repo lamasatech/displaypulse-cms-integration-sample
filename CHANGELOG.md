@@ -5,6 +5,18 @@ All notable changes to this project are listed here. Versions follow
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-03
+
+Needs a DisplayPulse app with play events API 1.2. An earlier DisplayPulse app refuses every play
+event from this version with `400`.
+
+### Changed
+
+- Every play event is sent as play events API `1.2`. `advertiser` is optional: a start names it
+  when the campaign has one and leaves it out otherwise. The sample no longer sends `1.1`.
+- **Start play** no longer reads `GET /health` first. Instead, the connection check warns in the
+  log to update the DisplayPulse app when `play_events_schema_versions` does not list `1.2`.
+
 ## [1.3.0] - 2026-11-03
 
 Naming the advertiser needs a DisplayPulse app with play events API 1.2. With an earlier
@@ -82,7 +94,8 @@ First public release of the sample.
 - README with prerequisites, troubleshooting, limitations and links to the API reference.
 - Apache License 2.0.
 
-[Unreleased]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.1.0...v1.3.0
 [1.1.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lamasatech/displaypulse-cms-integration-sample/releases/tag/v1.0.0

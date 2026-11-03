@@ -6,7 +6,6 @@ import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.Campaign
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ContentDuration
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventType
-import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventsApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -94,11 +93,10 @@ class PlayEventTest {
     }
 
     @Test
-    fun `started names the advertiser only when asked to`() {
-        val named = campaign.copy(advertiser = "Acme Foods")
-        assertEquals("Acme Foods", factory.started(named, null, includeAdvertiser = true).advertiser)
-        assertNull(factory.started(named, null, includeAdvertiser = false).advertiser)
-        assertNull(factory.started(campaign, null, includeAdvertiser = true).advertiser)
+    fun `started names the campaign's advertiser when it has one`() {
+        assertEquals("Acme Foods", factory.started(campaign.copy(advertiser = "Acme Foods"), null).advertiser)
+        // Control: a campaign without an advertiser starts without one.
+        assertNull(factory.started(campaign, null).advertiser)
     }
 
     @Test
@@ -126,13 +124,6 @@ class PlayEventTest {
         listOf("", "   ", "a".repeat(121), "Acme\nFoods", "Acme\u0085Foods", "_unknown", " _unknown ").forEach {
             assertNull(it, Advertiser.normalize(it))
         }
-    }
-
-    @Test
-    fun `the schema version follows the advertiser`() {
-        val named = campaign.copy(advertiser = "Acme Foods")
-        assertEquals("1.2", PlayEventsApi.versionFor(factory.started(named, null, includeAdvertiser = true)))
-        assertEquals("1.1", PlayEventsApi.versionFor(factory.started(named, null)))
     }
 
     @Test

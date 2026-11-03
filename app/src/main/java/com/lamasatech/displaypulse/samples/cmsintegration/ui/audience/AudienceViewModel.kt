@@ -18,6 +18,7 @@ import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.Advertise
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ApiResult
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.ContentDuration
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeliveryOutcome
+import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.DeviceHealth
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEvent
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventType
 import com.lamasatech.displaypulse.samples.cmsintegration.domain.model.PlayEventsApi
@@ -139,6 +140,9 @@ class AudienceViewModel @Inject constructor(
      * Asks the device whether it is reachable and updates [AudienceUiState.connection]. A check
      * still running is cancelled first, so a slow answer about an old address cannot overwrite a
      * newer one.
+     *
+     * When the device does not list play events API [PlayEventsApi.VERSION], the log says to
+     * update the DisplayPulse app. Plays can still be started; the device then refuses them.
      */
     fun checkHealth() {
         healthJob?.cancel()
@@ -147,11 +151,18 @@ class AudienceViewModel @Inject constructor(
                 is ApiResult.Success -> {
                     _state.update { it.copy(connection = ConnectionStatus.Online(result.value)) }
                     log("GET /health → 200 ${result.value.detail}")
+                    if (!result.value.acceptsPlayEvents) warnPlayEventsUnsupported(result.value)
                 }
                 is ApiResult.HttpError -> markOffline("HTTP ${result.code}")
                 is ApiResult.NetworkError -> markOffline(result.message)
             }
         }
+    }
+
+    private fun warnPlayEventsUnsupported(health: DeviceHealth) {
+        val listed = health.playEventVersions.sorted().joinToString().ifEmpty { "none" }
+        log("This DisplayPulse app does not accept play events API ${PlayEventsApi.VERSION} " +
+            "(it lists: $listed), so it will refuse plays. Update the DisplayPulse app", isError = true)
     }
 
     /**
@@ -182,13 +193,8 @@ class AudienceViewModel @Inject constructor(
     }
 
     /**
-     * Starts a new play for the current campaign and delivers its `started` event. Does nothing if
-     * a play cannot start now.
-     *
-     * When the campaign names an advertiser, the device is asked first whether it accepts one
-     * (play events API [PlayEventsApi.ADVERTISER_VERSION]). It is sent only if so; otherwise the
-     * play is reported without it and the log says why. If the device cannot be asked, nothing is
-     * sent, so a play is never reported without an advertiser by mistake.
+     * Starts a new play for the current campaign and delivers its `started` event, naming the
+     * campaign's advertiser if it has one. Does nothing if a play cannot start now.
      *
      * Nothing is sent, and the reason is logged, when [durationSecondsText] is not blank and is not
      * a whole number of seconds the device accepts.
@@ -205,49 +211,8 @@ class AudienceViewModel @Inject constructor(
                 return
             }
         }
-        if (_state.value.playback.campaign?.advertiser == null) {
-            _state.update { it.copy(playback = reducer.requestStart(it.playback, expectedDurationMs)) }
-            deliverPending()
-        } else {
-            startNamedPlay(expectedDurationMs)
-        }
-    }
-
-    /**
-     * Checks that the device accepts an advertiser, then records the `started` event with or
-     * without it. Runs under [deliveryLock] so a second tap cannot start a second play.
-     */
-    private fun startNamedPlay(expectedDurationMs: Long?) {
-        viewModelScope.launch {
-            val started = deliveryLock.withLock {
-                if (!_state.value.playback.canStart) return@withLock false
-                _state.update { it.copy(busy = true) }
-                val reply = repository.health()
-                _state.update { it.copy(busy = false) }
-                val health = when (reply) {
-                    is ApiResult.Success -> reply.value
-                    is ApiResult.HttpError -> return@withLock refuseNamedStart("HTTP ${reply.code}")
-                    is ApiResult.NetworkError -> return@withLock refuseNamedStart(reply.message)
-                }
-                _state.update { it.copy(connection = ConnectionStatus.Online(health)) }
-                val accepts = health.acceptsAdvertiser
-                if (!accepts) {
-                    log("This device accepts play events API ${health.playEventVersions.sorted().joinToString()} " +
-                        "only, so the play is reported without its advertiser. Update the DisplayPulse app " +
-                        "to API ${PlayEventsApi.ADVERTISER_VERSION} to report it", isError = true)
-                }
-                _state.update { it.copy(playback = reducer.requestStart(it.playback, expectedDurationMs, accepts)) }
-                true
-            }
-            if (started) deliverPending()
-        }
-    }
-
-    /** Logs why a play that names an advertiser was not started. @return `false`. */
-    private fun refuseNamedStart(reason: String): Boolean {
-        markOffline(reason)
-        log("Play not started: could not ask the device whether it accepts an advertiser. Tap Start again", isError = true)
-        return false
+        _state.update { it.copy(playback = reducer.requestStart(it.playback, expectedDurationMs)) }
+        deliverPending()
     }
 
     /**
@@ -360,7 +325,7 @@ class AudienceViewModel @Inject constructor(
     private fun describe(event: PlayEvent, result: ApiResult<PlayReceipt>): String {
         val duration = event.expectedDurationMs?.let { " expected_duration_ms=$it" }.orEmpty()
         val advertiser = event.advertiser?.let { " advertiser=\"$it\"" }.orEmpty()
-        val head = "POST /v1/play-events v${PlayEventsApi.versionFor(event)} ${event.type.wireName} " +
+        val head = "POST /v1/play-events v${PlayEventsApi.VERSION} ${event.type.wireName} " +
             "play=${event.playId.take(8)}$duration$advertiser"
         return when (result) {
             is ApiResult.Success ->
